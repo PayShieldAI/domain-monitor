@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=devpassword123
+      - DB_NAME=domain_monitor
+      - DB_PORT=3306
+      - JWT_SECRET=dev-jwt-secret-change-in-production-min-32-chars
+      - JWT_ACCESS_EXPIRY=15m
+      - JWT_REFRESH_EXPIRY=7d
+      - LOG_LEVEL=debug
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=devpassword123
+      - MYSQL_DATABASE=domain_monitor
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdevpassword123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
