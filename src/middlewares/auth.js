@@ -23,16 +23,68 @@ function authenticate(req, _res, next) {
   }
 }
 
-function requireAdmin(req, _res, next) {
+/**
+ * Require superadmin role
+ * Used for provider management and system-wide admin operations
+ */
+function requireSuperadmin(req, _res, next) {
   if (!req.user) {
     return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
   }
 
-  if (req.user.role !== 'admin') {
-    return next(new AppError('Admin access required', 403, 'FORBIDDEN'));
+  if (req.user.role !== 'superadmin') {
+    return next(new AppError('Superadmin access required', 403, 'FORBIDDEN'));
   }
 
   next();
 }
 
-module.exports = { authenticate, requireAdmin };
+/**
+ * Require merchant or reseller role (read-only users)
+ * Used for endpoints that should be accessible to read-only users
+ */
+function requireReadOnly(req, _res, next) {
+  if (!req.user) {
+    return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
+  }
+
+  if (!['merchant', 'reseller'].includes(req.user.role)) {
+    return next(new AppError('Access denied', 403, 'FORBIDDEN'));
+  }
+
+  next();
+}
+
+/**
+ * Check if user has superadmin role
+ */
+function isSuperadmin(user) {
+  return user && user.role === 'superadmin';
+}
+
+/**
+ * Check if user has reseller role
+ */
+function isReseller(user) {
+  return user && user.role === 'reseller';
+}
+
+/**
+ * Check if user has merchant role
+ */
+function isMerchant(user) {
+  return user && user.role === 'merchant';
+}
+
+// Backward compatibility: requireAdmin = requireSuperadmin
+const requireAdmin = requireSuperadmin;
+
+module.exports = {
+  authenticate,
+  requireAdmin, // Backward compatibility
+  requireSuperadmin,
+  requireReadOnly,
+  isSuperadmin,
+  isReseller,
+  isMerchant
+};

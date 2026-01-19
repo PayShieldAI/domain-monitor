@@ -1,22 +1,23 @@
 version: '3.8'
 
+# Load environment variables from .env.local
+# Docker-compose will read ENCRYPTION_KEY from this file
+
 services:
   app:
     build: .
+    env_file:
+      - .env.local
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
-      - PORT=3000
+      # Override DB settings for local MySQL container
       - DB_HOST=mysql
       - DB_USER=root
       - DB_PASSWORD=devpassword123
       - DB_NAME=domain_monitor
-      - DB_PORT=3306
-      - JWT_SECRET=dev-jwt-secret-change-in-production-min-32-chars
-      - JWT_ACCESS_EXPIRY=15m
-      - JWT_REFRESH_EXPIRY=7d
-      - LOG_LEVEL=debug
+      # All other settings (NODE_ENV, PORT, JWT_*, LOG_LEVEL, ENCRYPTION_KEY)
+      # are loaded from .env.local via env_file above
     depends_on:
       mysql:
         condition: service_healthy

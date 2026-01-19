@@ -2,6 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
+const path = require('path');
 
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
@@ -9,8 +10,18 @@ const requestLogger = require('./middlewares/requestLogger');
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware - Configure helmet to allow Swagger UI to work
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+      imgSrc: ["'self'", "data:", "https://validator.swagger.io"],
+      fontSrc: ["'self'", "https://unpkg.com"]
+    }
+  }
+}));
 app.use(cors());
 
 // Compression
@@ -22,6 +33,9 @@ app.use(requestLogger);
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve API documentation
+app.use('/docs', express.static(path.join(__dirname, '../docs')));
 
 // Routes
 app.use(routes);

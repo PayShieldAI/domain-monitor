@@ -2,13 +2,13 @@ const { v4: uuid } = require('uuid');
 const { query, queryOne } = require('../config/database');
 
 const userRepository = {
-  async create({ email, passwordHash, name }) {
+  async create({ email, passwordHash, name, role = 'merchant' }) {
     const id = uuid();
     const sql = `
-      INSERT INTO users (id, email, password_hash, name, status, created_at)
-      VALUES (?, ?, ?, ?, 'active', NOW())
+      INSERT INTO users (id, email, password_hash, name, role, status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'active', NOW())
     `;
-    await query(sql, [id, email, passwordHash, name || null]);
+    await query(sql, [id, email, passwordHash, name || null, role]);
     return this.findById(id);
   },
 

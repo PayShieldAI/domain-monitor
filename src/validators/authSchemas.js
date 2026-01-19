@@ -23,7 +23,15 @@ const registerSchema = Joi.object({
 
   name: Joi.string()
     .max(255)
+    .optional(),
+
+  role: Joi.string()
+    .valid('superadmin', 'reseller', 'merchant')
+    .default('merchant')
     .optional()
+    .messages({
+      'any.only': 'Role must be one of: superadmin, reseller, merchant'
+    })
 });
 
 const loginSchema = Joi.object({

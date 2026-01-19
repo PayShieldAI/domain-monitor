@@ -3,6 +3,7 @@ const config = require('./config');
 const { validateConfig } = require('./config');
 const { createPool, closePool } = require('./config/database');
 const logger = require('./utils/logger');
+const schedulerService = require('./services/schedulerService');
 
 async function start() {
   try {
@@ -13,6 +14,10 @@ async function start() {
     // Initialize database connection pool
     createPool();
     logger.info('Database pool initialized');
+
+    // Start scheduler for domain checks
+    await schedulerService.start();
+    logger.info('Domain check scheduler started');
 
     // Start server
     const server = app.listen(config.port, () => {
@@ -25,6 +30,10 @@ async function start() {
 
       server.close(async () => {
         logger.info('HTTP server closed');
+
+        // Stop scheduler
+        schedulerService.stop();
+        logger.info('Scheduler stopped');
 
         await closePool();
         logger.info('Database connections closed');

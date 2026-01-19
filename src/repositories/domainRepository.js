@@ -2,15 +2,16 @@ const { v4: uuid } = require('uuid');
 const { query, queryOne } = require('../config/database');
 
 const domainRepository = {
-  async create({ userId, domain, checkFrequency = 'daily' }) {
+  async create({ userId, domain, name, checkFrequency = null }) {
     const id = uuid();
-    const nextCheckAt = this.calculateNextCheck(checkFrequency);
+    // Only calculate next check if monitoring is enabled (checkFrequency provided)
+    const nextCheckAt = checkFrequency ? this.calculateNextCheck(checkFrequency) : null;
 
     const sql = `
-      INSERT INTO domains (id, user_id, domain, check_frequency, status, next_check_at, created_at)
-      VALUES (?, ?, ?, ?, 'active', ?, NOW())
+      INSERT INTO domains (id, user_id, domain, name, check_frequency, status, next_check_at, created_at)
+      VALUES (?, ?, ?, ?, ?, 'active', ?, NOW())
     `;
-    await query(sql, [id, userId, domain, checkFrequency, nextCheckAt]);
+    await query(sql, [id, userId, domain || null, name || null, checkFrequency, nextCheckAt]);
     return this.findById(id);
   },
 
@@ -19,15 +20,18 @@ const domainRepository = {
 
     for (const item of domains) {
       try {
-        const domain = await this.create({
+        const createdDomain = await this.create({
           userId,
           domain: item.domain,
-          checkFrequency: item.checkFrequency || 'daily'
+          name: item.name,
+          checkFrequency: item.checkFrequency || null
         });
-        results.success.push(domain);
+        // Attach original item data for provider calls
+        createdDomain._originalItem = item;
+        results.success.push(createdDomain);
       } catch (err) {
         results.failed.push({
-          domain: item.domain,
+          domain: item.domain || item.name,
           error: err.code === 'ER_DUP_ENTRY' ? 'Domain already exists' : err.message
         });
       }
@@ -52,6 +56,10 @@ const domainRepository = {
   },
 
   async findByUserId(userId, { page = 1, limit = 20, status, recommendation, search, sortBy = 'created_at', sortOrder = 'desc' }) {
+    // Ensure page and limit are integers
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+
     let sql = 'SELECT * FROM domains WHERE user_id = ?';
     let countSql = 'SELECT COUNT(*) as total FROM domains WHERE user_id = ?';
     const params = [userId];
@@ -86,7 +94,7 @@ const domainRepository = {
 
     sql += ` ORDER BY ${sortColumn} ${order}`;
     sql += ' LIMIT ? OFFSET ?';
-    params.push(limit, (page - 1) * limit);
+    params.push(limitNum, (pageNum - 1) * limitNum);
 
     const [domains, countResult] = await Promise.all([
       query(sql, params),
@@ -125,7 +133,8 @@ const domainRepository = {
     `;
 
     const domain = await this.findById(id);
-    const nextCheckAt = this.calculateNextCheck(domain.check_frequency);
+    // Only calculate next check if monitoring is enabled (check_frequency provided)
+    const nextCheckAt = domain.check_frequency ? this.calculateNextCheck(domain.check_frequency) : null;
 
     await query(sql, [
       result.recommendation,
@@ -191,6 +200,11 @@ const domainRepository = {
   },
 
   calculateNextCheck(frequency) {
+    // Return null if no frequency provided (one-time check only)
+    if (!frequency) {
+      return null;
+    }
+
     const now = new Date();
     switch (frequency) {
       case 'daily':
@@ -200,7 +214,8 @@ const domainRepository = {
       case 'monthly':
         return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       default:
-        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        // Unknown frequency - return null (no monitoring)
+        return null;
     }
   },
 
@@ -216,13 +231,163 @@ const domainRepository = {
   },
 
   async getCheckHistory(domainId, limit = 10) {
+    const limitNum = parseInt(limit, 10) || 10;
     const sql = `
       SELECT * FROM domain_check_history
       WHERE domain_id = ?
       ORDER BY checked_at DESC
       LIMIT ?
     `;
-    return query(sql, [domainId, limit]);
+    return query(sql, [domainId, limitNum]);
+  },
+
+  // Multi-tenant access methods
+
+  /**
+   * Find domains accessible by a reseller (domains of assigned merchants)
+   */
+  async findByResellerId(resellerId, { page = 1, limit = 20, status, recommendation, search, sortBy = 'created_at', sortOrder = 'desc' }) {
+    // Ensure page and limit are integers
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+
+    let sql = `
+      SELECT d.* FROM domains d
+      INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+      WHERE rmr.reseller_id = ?
+    `;
+    let countSql = `
+      SELECT COUNT(*) as total FROM domains d
+      INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+      WHERE rmr.reseller_id = ?
+    `;
+    const params = [resellerId];
+    const countParams = [resellerId];
+
+    if (status) {
+      sql += ' AND d.status = ?';
+      countSql += ' AND d.status = ?';
+      params.push(status);
+      countParams.push(status);
+    }
+
+    if (recommendation) {
+      sql += ' AND d.recommendation = ?';
+      countSql += ' AND d.recommendation = ?';
+      params.push(recommendation);
+      countParams.push(recommendation);
+    }
+
+    if (search) {
+      sql += ' AND (d.domain LIKE ? OR d.name LIKE ?)';
+      countSql += ' AND (d.domain LIKE ? OR d.name LIKE ?)';
+      const searchPattern = `%${search}%`;
+      params.push(searchPattern, searchPattern);
+      countParams.push(searchPattern, searchPattern);
+    }
+
+    const allowedSortFields = ['created_at', 'domain', 'recommendation', 'last_checked_at'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    sql += ` ORDER BY d.${safeSortBy} ${safeSortOrder}`;
+
+    const offset = (pageNum - 1) * limitNum;
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(limitNum, offset);
+
+    const [domains, countResult] = await Promise.all([
+      query(sql, params),
+      queryOne(countSql, countParams)
+    ]);
+
+    return {
+      domains,
+      total: countResult.total,
+      page: pageNum,
+      limit: limitNum
+    };
+  },
+
+  /**
+   * Find all domains (superadmin access)
+   */
+  async findAll({ page = 1, limit = 20, status, recommendation, search, sortBy = 'created_at', sortOrder = 'desc' }) {
+    // Ensure page and limit are integers
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+
+    let sql = 'SELECT * FROM domains WHERE 1=1';
+    let countSql = 'SELECT COUNT(*) as total FROM domains WHERE 1=1';
+    const params = [];
+    const countParams = [];
+
+    if (status) {
+      sql += ' AND status = ?';
+      countSql += ' AND status = ?';
+      params.push(status);
+      countParams.push(status);
+    }
+
+    if (recommendation) {
+      sql += ' AND recommendation = ?';
+      countSql += ' AND recommendation = ?';
+      params.push(recommendation);
+      countParams.push(recommendation);
+    }
+
+    if (search) {
+      sql += ' AND (domain LIKE ? OR name LIKE ?)';
+      countSql += ' AND (domain LIKE ? OR name LIKE ?)';
+      const searchPattern = `%${search}%`;
+      params.push(searchPattern, searchPattern);
+      countParams.push(searchPattern, searchPattern);
+    }
+
+    const allowedSortFields = ['created_at', 'domain', 'recommendation', 'last_checked_at'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    sql += ` ORDER BY ${safeSortBy} ${safeSortOrder}`;
+
+    const offset = (pageNum - 1) * limitNum;
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(limitNum, offset);
+
+    const [domains, countResult] = await Promise.all([
+      query(sql, params),
+      queryOne(countSql, countParams)
+    ]);
+
+    return {
+      domains,
+      total: countResult.total,
+      page: pageNum,
+      limit: limitNum
+    };
+  },
+
+  /**
+   * Check if a reseller has access to a specific domain
+   */
+  async resellerHasAccessToDomain(resellerId, domainId) {
+    const sql = `
+      SELECT 1 FROM domains d
+      INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+      WHERE rmr.reseller_id = ? AND d.id = ?
+      LIMIT 1
+    `;
+    const result = await queryOne(sql, [resellerId, domainId]);
+    return !!result;
+  },
+
+  /**
+   * Get merchant IDs accessible by a reseller
+   */
+  async getMerchantIdsByReseller(resellerId) {
+    const sql = 'SELECT merchant_id FROM reseller_merchant_relationships WHERE reseller_id = ?';
+    const results = await query(sql, [resellerId]);
+    return results.map(r => r.merchant_id);
   }
 };
 

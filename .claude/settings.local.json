@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZjIzMDRiMC0xODdkLTRlZTItYmY1ZS0xYWUwMzFiZDE1YzMiLCJlbWFpbCI6ImdlZW5hQHBheXNoaWVsZC5haSIsInJvbGUiOiJzdXBlcmFkbWluIiwiaWF0IjoxNzY4NDQ4OTkzLCJleHAiOjE3Njg0NDk4OTN9.dOodSiLeV_qgTNlwRCaGQDmar2oWq6iNY5L2mJzd6rw\")",
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZjIzMDRiMC0xODdkLTRlZTItYmY1ZS0xYWUwMzFiZDE1YzMiLCJlbWFpbCI6ImdlZW5hQHBheXNoaWVsZC5haSIsInJvbGUiOiJzdXBlcmFkbWluIiwiaWF0IjoxNzY4NDUwMjA3LCJleHAiOjE3Njg0NTExMDd9.XPYkt4rJHMwpWhobX-u3BO6vsSJ9yjiwuP1Y5hZ2UAA\")",
+      "Bash(DOMAIN_ID=\"0d81f404-0202-4885-9c9f-532dac92aa13\":*)"
+    ]
+  }
+}

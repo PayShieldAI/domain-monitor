@@ -103,27 +103,44 @@ A microservice that:
 ### 4.1 Domain Management
 
 #### FR-01: Add Single Domain
-- **Input:** Domain name, optional check frequency
+- **Input:** Domain name, optional check frequency, optional merchantId
 - **Validation:**
   - Domain must be valid format (RFC 1035)
   - Domain max length: 255 characters
   - Check frequency: daily, weekly, or monthly (default: daily)
+  - merchantId: Valid user UUID (superadmin/reseller only)
 - **Behavior:**
   - Create domain record with status "active"
   - Queue initial TrueBiz check
   - Return created domain with ID
+- **Authorization:**
+  - Superadmin/Reseller: Can specify `merchantId` to add domains for a merchant
+  - Merchant: Cannot specify merchantId, domains added to own account
 - **Constraints:**
   - User cannot add duplicate domains
   - Maximum 10,000 domains per user
 
 #### FR-02: Add Domains in Bulk
-- **Input:** Array of domain objects (max 100 per request)
+- **Input:** Array of domain objects (max 100 per request), optional merchantId
 - **Behavior:**
   - Validate each domain independently
   - Create valid domains, collect errors for invalid ones
-  - Return success/failure breakdown
+  - Trigger provider check for each successfully created domain
+  - Log all provider API calls (request and response)
+  - Return success/failure breakdown including provider check results
+- **Authorization:**
+  - Superadmin/Reseller: Can specify `merchantId` to add domains for a merchant
+  - Merchant: Cannot specify merchantId, domains added to own account
+- **Response:**
+  - `success`: Array of created domains
+  - `failed`: Array of domains that failed to create
+  - `providerChecks`: Summary of provider API call results
+    - `checked`: Count of successful provider checks
+    - `failed`: Count of failed provider checks
+    - `failures`: Array of failure details (domainId, domain, error)
 - **Constraints:**
   - Partial success allowed (some fail, others succeed)
+  - Provider check failures don't prevent domain creation
 
 #### FR-03: Retrieve Domain
 - **Input:** Domain ID
@@ -344,6 +361,22 @@ Each provider implements its own mapping to the internal schema:
 | rawData | (full response) | (full response) |
 | provider | "truebiz" | "provider_b" |
 
+#### FR-27: Provider API Logging
+- **Trigger:** Every provider API call (domain checks, health checks)
+- **Behavior:**
+  - Log request payload, timestamp
+  - Log response status, data, timestamp
+  - Calculate and store duration
+  - Store error message if call failed
+  - Link to domain record if applicable
+- **Storage:** provider_api_logs table
+- **Retention:** Configurable (default 30 days)
+- **Use Cases:**
+  - Debugging provider integration issues
+  - Monitoring provider performance and reliability
+  - Compliance audit trail
+  - API cost tracking
+
 ---
 
 ## 5. API Specification
@@ -454,7 +487,7 @@ User {
   email: string (unique, max 255)
   passwordHash: string
   name: string | null
-  role: enum [user, admin]
+  role: enum [superadmin, reseller, merchant]
   status: enum [active, inactive, pending_verification]
   emailVerifiedAt: timestamp | null
   lastLoginAt: timestamp | null
@@ -462,6 +495,11 @@ User {
   updatedAt: timestamp
 }
 ```
+
+**User Roles:**
+- **superadmin**: Full system access, can manage providers, view all data, perform all operations
+- **reseller**: Read-only access to multiple merchants' domain data (merchants they are assigned to)
+- **merchant**: Read-only access to their own domain data only
 
 ### 6.2 Refresh Token Entity
 ```
@@ -530,7 +568,40 @@ Webhook {
 }
 ```
 
-### 6.6 Database Tables
+### 6.6 Reseller-Merchant Relationship Entity
+```
+ResellerMerchantRelationship {
+  id: UUID (primary key)
+  resellerId: UUID (foreign key → users.id where role='reseller')
+  merchantId: UUID (foreign key → users.id where role='merchant')
+  createdAt: timestamp
+}
+```
+
+**Purpose:** Defines which merchants a reseller can access. A reseller can view domains for all assigned merchants.
+
+### 6.7 Provider API Log Entity
+```
+ProviderApiLog {
+  id: UUID (primary key)
+  domainId: UUID | null (foreign key → domains.id)
+  provider: string (provider name)
+  endpoint: string (API endpoint called)
+  method: string (HTTP method)
+  requestPayload: JSON | null
+  responseStatus: integer | null
+  responseData: JSON | null
+  errorMessage: string | null
+  requestTimestamp: timestamp
+  responseTimestamp: timestamp
+  durationMs: integer (computed)
+  createdAt: timestamp
+}
+```
+
+**Purpose:** Audit trail for all provider API calls, useful for debugging, monitoring, and compliance.
+
+### 6.8 Database Tables
 - users
 - refresh_tokens
 - domains
@@ -538,6 +609,8 @@ Webhook {
 - webhooks
 - webhook_deliveries
 - domain_check_history
+- reseller_merchant_relationships
+- provider_api_logs
 
 ---
 
@@ -564,13 +637,43 @@ Webhook {
 | Authentication | JWT tokens issued by this service |
 | Password Storage | bcrypt with cost factor 12 |
 | Token Security | Short-lived access (15min), refresh rotation |
-| Authorization | User can only access own resources |
+| Authorization | Role-based access control (see 7.3.1) |
 | Data in Transit | HTTPS/TLS 1.2+ |
 | Data at Rest | RDS encryption |
 | SQL Injection | Parameterized queries |
 | Secrets Management | AWS Secrets Manager |
 | Provider API Keys | Encrypted at rest in database |
 | Audit Logging | All mutations logged with user ID |
+
+#### 7.3.1 Role-Based Access Control (RBAC)
+
+**Superadmin Role:**
+- Full CRUD access to all resources
+- Can manage providers (CRUD operations)
+- Can view/manage all users' domains
+- Can create/update/delete any domain
+- Can add domains on behalf of any merchant (via `merchantId` parameter)
+- Can access all admin endpoints
+
+**Reseller Role:**
+- Can add domains on behalf of assigned merchants (via `merchantId` parameter)
+- Can list domains for all assigned merchants
+- Can view domain details for assigned merchants
+- Cannot manage providers
+- Cannot access admin endpoints
+
+**Merchant Role:**
+- Read-only access to own domains only
+- Can list own domains
+- Can view own domain details
+- Cannot add, update, or delete domains
+- Cannot manage providers
+- Cannot access admin endpoints
+
+**Permission Enforcement:**
+- Domain queries filtered by user role and relationships
+- API endpoints validate role before performing operations
+- Database queries include user_id or reseller-merchant relationship filters
 
 ### 7.4 Compliance (GDPR)
 | Requirement | Implementation |
@@ -733,8 +836,10 @@ Items for future enhancement:
 - TrueBiz API Docs: https://ae.truebiz.io/api/v1/docs
 - JWT Specification: https://jwt.io/introduction
 - SSE Specification: https://html.spec.whatwg.org/multipage/server-sent-events.html
-- Architecture Plan: See `docs/architecture-plan.md`
-- API Specification: See `docs/api-spec.md`
+- System Workflow: See `docs/WORKFLOW.md`
+- Provider Setup Guide: See `docs/PROVIDER-SETUP.md`
+- Docker Setup: See `README-DOCKER.md`
+- API Documentation: See `docs/swagger.yaml`
 
 ### C. Revision History
 | Version | Date | Author | Changes |

@@ -11,7 +11,7 @@ CREATE TABLE users (
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(255),
-  role ENUM('user', 'admin') DEFAULT 'user',
+  role ENUM('superadmin', 'reseller', 'merchant') DEFAULT 'merchant',
   status ENUM('active', 'inactive', 'pending_verification') DEFAULT 'pending_verification',
   email_verified_at TIMESTAMP NULL,
   last_login_at TIMESTAMP NULL,
@@ -19,7 +19,8 @@ CREATE TABLE users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   INDEX idx_email (email),
-  INDEX idx_status (status)
+  INDEX idx_status (status),
+  INDEX idx_role (role)
 );
 
 -- Refresh Tokens (for JWT refresh)
@@ -140,17 +141,20 @@ CREATE TABLE password_reset_tokens (
   INDEX idx_user_expires (user_id, expires_at)
 );
 
--- Insert default TrueBiz provider
-INSERT INTO providers (id, name, display_name, enabled, priority, api_base_url, api_key_encrypted, rate_limit, timeout, config)
-VALUES (
-  UUID(),
-  'truebiz',
-  'TrueBiz Web Presence',
-  TRUE,
-  10,
-  'https://ae.truebiz.io/api/v1',
-  'PLACEHOLDER_ENCRYPTED_KEY',
-  60,
-  10000,
-  '{"retries": 3, "retryDelay": "exponential"}'
+-- Reseller-Merchant Relationships
+-- Maps which merchants a reseller can access
+CREATE TABLE reseller_merchant_relationships (
+  id CHAR(36) PRIMARY KEY,
+  reseller_id CHAR(36) NOT NULL,
+  merchant_id CHAR(36) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (reseller_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (merchant_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_reseller_merchant (reseller_id, merchant_id),
+  INDEX idx_reseller (reseller_id),
+  INDEX idx_merchant (merchant_id)
 );
+
+-- Note: Providers should be added via API or admin panel after deployment
+-- with encrypted API keys. Do not store unencrypted keys in migrations.

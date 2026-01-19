@@ -6,7 +6,7 @@ const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
 
 const authService = {
-  async register(email, password, name) {
+  async register(email, password, name, role = 'merchant') {
     // Check if email already exists
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
@@ -17,14 +17,15 @@ const authService = {
     const passwordHash = await cryptoUtils.hashPassword(password);
 
     // Create user
-    const user = await userRepository.create({ email, passwordHash, name });
+    const user = await userRepository.create({ email, passwordHash, name, role });
 
-    logger.info({ userId: user.id, email }, 'User registered');
+    logger.info({ userId: user.id, email, role }, 'User registered');
 
     return {
       userId: user.id,
       email: user.email,
-      name: user.name
+      name: user.name,
+      role: user.role
     };
   },
 

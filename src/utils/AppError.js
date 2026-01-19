@@ -23,12 +23,19 @@ class AppError extends Error {
   }
 
   toJSON() {
-    return {
+    const json = {
       error: {
         code: this.code,
         message: this.message
       }
     };
+
+    // Include validation details if present
+    if (this.details) {
+      json.error.details = this.details;
+    }
+
+    return json;
   }
 }
 

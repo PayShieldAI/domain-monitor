@@ -38,7 +38,9 @@ function getPool() {
 
 async function query(sql, params = []) {
   const db = getPool();
-  const [rows] = await db.execute(sql, params);
+  // Use query() instead of execute() for better compatibility with LIMIT/OFFSET
+  // execute() uses prepared statements which can be strict about parameter types
+  const [rows] = await db.query(sql, params);
   return rows;
 }
 
