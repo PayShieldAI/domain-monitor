@@ -100,11 +100,22 @@ const changePasswordSchema = Joi.object({
     })
 });
 
+const generateUserTokenSchema = Joi.object({
+  userId: Joi.string()
+    .uuid()
+    .required()
+    .messages({
+      'string.guid': 'userId must be a valid UUID',
+      'any.required': 'userId is required'
+    })
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  changePasswordSchema
+  changePasswordSchema,
+  generateUserTokenSchema
 };

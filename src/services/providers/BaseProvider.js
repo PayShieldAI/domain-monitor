@@ -64,6 +64,29 @@ class BaseProvider {
       rateLimit: this.rateLimit
     };
   }
+
+  /**
+   * Verify webhook signature
+   * Must be implemented by providers that support webhooks
+   * @param {string} rawBody - Raw request body
+   * @param {Object} headers - Request headers
+   * @param {string} webhookSecret - Webhook secret for verification
+   * @returns {Promise<Object>} Verified payload
+   * @throws {Error} If signature is invalid
+   */
+  async verifyWebhookSignature(rawBody, headers, webhookSecret) {
+    throw new Error('verifyWebhookSignature() must be implemented by provider');
+  }
+
+  /**
+   * Process webhook event
+   * Must be implemented by providers that support webhooks
+   * @param {Object} payload - Webhook payload (verified)
+   * @returns {Promise<Object>} Processing result with domain matching info
+   */
+  async processWebhook(payload) {
+    throw new Error('processWebhook() must be implemented by provider');
+  }
 }
 
 module.exports = BaseProvider;

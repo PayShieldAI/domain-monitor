@@ -30,8 +30,16 @@ app.use(compression());
 // Request logging
 app.use(requestLogger);
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
+// Body parsing with raw body capture for webhook signature verification
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf, encoding) => {
+    // Save raw body for webhook signature verification
+    if (req.url.startsWith('/api/v1/webhooks/')) {
+      req.rawBody = buf.toString(encoding || 'utf8');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve API documentation

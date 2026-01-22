@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Load environment variables from .env.local
 # Docker-compose will read ENCRYPTION_KEY from this file
 
@@ -10,37 +8,31 @@ services:
       - .env.local
     ports:
       - "3000:3000"
-    environment:
-      # Override DB settings for local MySQL container
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASSWORD=devpassword123
-      - DB_NAME=domain_monitor
-      # All other settings (NODE_ENV, PORT, JWT_*, LOG_LEVEL, ENCRYPTION_KEY)
-      # are loaded from .env.local via env_file above
-    depends_on:
-      mysql:
-        condition: service_healthy
+    # All settings (NODE_ENV, PORT, DB_*, JWT_*, LOG_LEVEL, ENCRYPTION_KEY)
+    # are loaded from .env.local via env_file above
+    # depends_on:
+    #   mysql:
+    #     condition: service_healthy
     volumes:
       - .:/app
       - /app/node_modules
     command: npm run dev
 
-  mysql:
-    image: mysql:8.4
-    ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=devpassword123
-      - MYSQL_DATABASE=domain_monitor
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdevpassword123"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # mysql:
+  #   image: mysql:8.4
+  #   ports:
+  #     - "3306:3306"
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=devpassword123
+  #     - MYSQL_DATABASE=domain_monitor
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdevpassword123"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
-volumes:
-  mysql_data:
+# volumes:
+#   mysql_data:

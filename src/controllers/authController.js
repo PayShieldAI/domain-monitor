@@ -93,6 +93,20 @@ const authController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  async generateUserToken(req, res, next) {
+    try {
+      const { userId } = req.body;
+      const result = await authService.generateTokenForUser(userId);
+
+      res.json({
+        message: 'Token generated successfully',
+        data: result
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 };
 

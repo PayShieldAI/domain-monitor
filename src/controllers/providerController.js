@@ -228,7 +228,8 @@ const providerController = {
     } catch (error) {
       next(error);
     }
-  }
+  },
+
 };
 
 module.exports = providerController;

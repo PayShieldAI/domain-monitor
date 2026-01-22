@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 
 const config = {
   host: process.env.DB_HOST,
@@ -11,6 +11,10 @@ const config = {
   port: process.env.DB_PORT || 3306,
   multipleStatements: true
 };
+console.log('ENV LOADED:', {
+  DB_HOST: process.env.DB_USER,
+  ENV_FILE: process.cwd()
+});
 
 async function migrate() {
   let connection;

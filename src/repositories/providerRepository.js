@@ -33,7 +33,7 @@ const providerRepository = {
   /**
    * Create or update provider
    */
-  async upsert({ name, displayName, apiBaseUrl, apiKeyEncrypted, enabled = true, priority = 100, rateLimit = 60, timeout = 10000, config = {} }) {
+  async upsert({ name, displayName, apiBaseUrl, apiKeyEncrypted, webhookSecretEncrypted = null, enabled = true, priority = 100, rateLimit = 60, timeout = 10000, config = {} }) {
     const existing = await this.findByName(name);
 
     if (existing) {
@@ -42,6 +42,7 @@ const providerRepository = {
         SET display_name = ?,
             api_base_url = ?,
             api_key_encrypted = ?,
+            webhook_secret_encrypted = ?,
             enabled = ?,
             priority = ?,
             rate_limit = ?,
@@ -54,6 +55,7 @@ const providerRepository = {
         displayName,
         apiBaseUrl,
         apiKeyEncrypted,
+        webhookSecretEncrypted,
         enabled,
         priority,
         rateLimit,
@@ -65,8 +67,8 @@ const providerRepository = {
     } else {
       const id = uuid();
       const sql = `
-        INSERT INTO providers (id, name, display_name, api_base_url, api_key_encrypted, enabled, priority, rate_limit, timeout, config)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO providers (id, name, display_name, api_base_url, api_key_encrypted, webhook_secret_encrypted, enabled, priority, rate_limit, timeout, config)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       await query(sql, [
         id,
@@ -74,6 +76,7 @@ const providerRepository = {
         displayName,
         apiBaseUrl,
         apiKeyEncrypted,
+        webhookSecretEncrypted,
         enabled,
         priority,
         rateLimit,
@@ -99,6 +102,15 @@ const providerRepository = {
   async updatePriority(id, priority) {
     const sql = 'UPDATE providers SET priority = ?, updated_at = NOW() WHERE id = ?';
     await query(sql, [priority, id]);
+    return this.findById(id);
+  },
+
+  /**
+   * Update webhook secret
+   */
+  async updateWebhookSecret(id, webhookSecretEncrypted) {
+    const sql = 'UPDATE providers SET webhook_secret_encrypted = ?, updated_at = NOW() WHERE id = ?';
+    await query(sql, [webhookSecretEncrypted, id]);
     return this.findById(id);
   },
 

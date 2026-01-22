@@ -5,20 +5,65 @@ info:
     Production-grade microservice for monitoring merchant web presence.
 
     ## Features
-    - User authentication with JWT tokens
+    - User authentication with JWT tokens and API keys
     - Domain monitoring with configurable check frequencies
     - Bulk operations support
     - Multi-provider architecture (TrueBiz primary)
+    - Machine-to-machine authentication via API keys
     - Real-time updates via SSE (coming soon)
-    - Webhook notifications (coming soon)
+    - Webhook notifications
 
     ## Authentication
+
+    ### JWT Bearer Token (User Authentication)
     Most endpoints require a Bearer token in the Authorization header:
     ```
     Authorization: Bearer <your_access_token>
     ```
-
     Get your token by calling `/api/v1/auth/login`.
+
+    ### API Key (Machine-to-Machine Authentication)
+    External systems can authenticate using API keys:
+    ```
+    X-API-Key: dmk_your_api_key_here
+    ```
+    API keys provide system-level access and are managed by superadmins.
+    See the API Keys section for management endpoints.
+
+    ### Flexible Authentication
+    Some endpoints support both authentication methods (JWT or API key).
+    These endpoints will attempt Bearer token first, then fall back to API key.
+
+    ## Quick Start Examples
+
+    ### Example 1: User Login and Access
+    ```bash
+    # Login to get JWT token
+    curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{"email": "user@example.com", "password": "YourPassword123"}'
+
+    # Use the token to access protected endpoints
+    curl -X GET https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
+      -H "Authorization: Bearer <your_token>"
+    ```
+
+    ### Example 2: API Key for External Systems
+    ```bash
+    # External system authenticating with API key
+    curl -X GET https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
+      -H "X-API-Key: dmk_your_api_key_here"
+    ```
+
+    ### Example 3: Generate User Token via API Key
+    ```bash
+    # External system generating JWT for a user
+    curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/auth/generate-user-token \
+      -H "X-API-Key: dmk_your_api_key_here" \
+      -H "Content-Type: application/json" \
+      -d '{"userId": "user-uuid-here"}'
+    ```
+
   version: 1.0.0
   contact:
     name: API Support
@@ -45,6 +90,8 @@ tags:
     description: Domain monitoring operations
   - name: Providers
     description: Provider management (Superadmin only)
+  - name: API Keys
+    description: API key management for machine-to-machine authentication (Superadmin only)
 
 components:
   securitySchemes:
@@ -52,6 +99,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for machine-to-machine authentication
 
   schemas:
     Error:
@@ -181,6 +233,11 @@ components:
         apiKeyMasked:
           type: string
           example: sk_t****
+          description: Masked API key (last 4 chars visible)
+        webhookSecretMasked:
+          type: string
+          example: '****abc123'
+          description: Masked webhook secret (last 4 chars visible)
         rateLimit:
           type: integer
           description: Requests per minute
@@ -212,6 +269,63 @@ components:
           type: boolean
         hasPrev:
           type: boolean
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Descriptive name for the API key
+        keyPrefix:
+          type: string
+          description: First 12 characters of the key for identification
+          example: "dmk_a1b2c3d4"
+        permissions:
+          type: array
+          items:
+            type: string
+          description: Array of permission scopes
+          nullable: true
+        description:
+          type: string
+          description: Purpose and usage notes
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last time this API key was used for authentication
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional expiration date
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the key was revoked (null if active)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdBy:
+          type: object
+          nullable: true
+          description: User who created this API key
+          properties:
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+              nullable: true
 
 paths:
   /health:
@@ -509,6 +623,104 @@ paths:
           description: Current password incorrect
         '401':
           description: Unauthorized
+
+  /api/v1/auth/generate-user-token:
+    post:
+      tags:
+        - Authentication
+      summary: Generate JWT token for any user (Superadmin or API Key)
+      description: |
+        Allows a superadmin (via JWT) or system with API key to generate a JWT access token for any user.
+        This is useful for:
+        - Support scenarios (superadmin helping users)
+        - Testing purposes (superadmin creating test tokens)
+        - Machine-to-machine flows (external systems generating user tokens via API key)
+
+        The generated token is a standard JWT that can be used for authentication.
+
+        **Authentication Options:**
+        - JWT Bearer token (requires superadmin role)
+        - API Key via X-API-Key header (system-level access)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: The UUID of the user to generate a token for
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+            examples:
+              superadminRequest:
+                summary: Request from superadmin via JWT
+                value:
+                  userId: "123e4567-e89b-12d3-a456-426614174000"
+              apiKeyRequest:
+                summary: Request from external system via API Key
+                value:
+                  userId: "987e6543-e21b-43d3-a456-426614174999"
+      responses:
+        '200':
+          description: Token generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Token generated successfully
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        description: JWT access token for the user
+                      expiresIn:
+                        type: integer
+                        description: Token expiry time in seconds
+                        example: 900
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          email:
+                            type: string
+                            format: email
+                          role:
+                            type: string
+                            enum: [superadmin, reseller, merchant]
+                          name:
+                            type: string
+                            nullable: true
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Superadmin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/v1/users/me:
     get:
@@ -1298,6 +1510,12 @@ paths:
       tags:
         - Providers
       summary: Update provider
+      description: |
+        Update provider configuration. All fields are optional - only provide fields you want to update.
+
+        **Security**:
+        - `apiKey` and `webhookSecret` will be encrypted before storage
+        - Masked versions are returned in responses
       security:
         - BearerAuth: []
       parameters:
@@ -1317,19 +1535,36 @@ paths:
               properties:
                 displayName:
                   type: string
+                  minLength: 2
+                  maxLength: 100
                 apiBaseUrl:
                   type: string
                   format: uri
                 apiKey:
                   type: string
+                  minLength: 10
+                  maxLength: 500
+                  description: Provider API key (will be encrypted)
+                webhookSecret:
+                  type: string
+                  minLength: 20
+                  maxLength: 500
+                  example: whsec_xxxxxxxxxxxxxxxxxxxxxxxx
+                  description: Webhook signing secret (will be encrypted)
                 enabled:
                   type: boolean
                 priority:
                   type: integer
+                  minimum: 1
+                  maximum: 1000
                 rateLimit:
                   type: integer
+                  minimum: 1
+                  maximum: 10000
                 timeout:
                   type: integer
+                  minimum: 1000
+                  maximum: 60000
                 config:
                   type: object
       responses:
@@ -1348,6 +1583,8 @@ paths:
                     $ref: '#/components/schemas/Provider'
         '404':
           description: Provider not found
+        '422':
+          description: Validation error
 
     delete:
       tags:
@@ -1578,3 +1815,290 @@ paths:
                       responseTime:
                         type: integer
                         description: Response time in milliseconds
+
+  /api/v1/admin/api-keys:
+    get:
+      tags:
+        - API Keys
+      summary: List all API keys
+      description: Retrieve all API keys with metadata. Requires superadmin role.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: includeRevoked
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include revoked API keys in the response
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Superadmin access required
+
+    post:
+      tags:
+        - API Keys
+      summary: Create a new API key
+      description: |
+        Generate a new API key for machine-to-machine authentication.
+        The API key is returned only once and cannot be retrieved again.
+        Store it securely. Requires superadmin role.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 3
+                  maxLength: 255
+                  description: Descriptive name for the API key
+                  example: "Payment Gateway Integration"
+                description:
+                  type: string
+                  maxLength: 1000
+                  description: Purpose and usage notes
+                  example: "Used by the payment gateway to verify domains before processing"
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of permission scopes (optional, for future use)
+                  example: ["domains:read", "domains:write"]
+                expiresAt:
+                  type: string
+                  format: date-time
+                  description: Optional expiration date (ISO 8601 format)
+                  example: "2026-12-31T23:59:59Z"
+      responses:
+        '201':
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "API key created successfully"
+                  warning:
+                    type: string
+                    example: "Store this API key securely. It will not be shown again."
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      apiKey:
+                        type: string
+                        description: The actual API key (only returned on creation)
+                        example: "dmk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+                      keyPrefix:
+                        type: string
+                        description: First 12 characters for identification
+                        example: "dmk_a1b2c3d4"
+                      name:
+                        type: string
+                      permissions:
+                        type: array
+                        items:
+                          type: string
+                      description:
+                        type: string
+                        nullable: true
+                      expiresAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Superadmin access required
+
+  /api/v1/admin/api-keys/{id}:
+    get:
+      tags:
+        - API Keys
+      summary: Get API key details
+      description: Retrieve details of a specific API key. Requires superadmin role.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ApiKey'
+        '404':
+          description: API key not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Superadmin access required
+
+    patch:
+      tags:
+        - API Keys
+      summary: Update API key metadata
+      description: Update name, description, permissions, or expiration. Cannot update revoked keys. Requires superadmin role.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 3
+                  maxLength: 255
+                description:
+                  type: string
+                  maxLength: 1000
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '200':
+          description: API key updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ApiKey'
+        '400':
+          description: Cannot update revoked key
+        '404':
+          description: API key not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Superadmin access required
+
+    delete:
+      tags:
+        - API Keys
+      summary: Delete API key (hard delete)
+      description: Permanently delete an API key from the database. Requires superadmin role.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "API key deleted successfully"
+        '404':
+          description: API key not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Superadmin access required
+
+  /api/v1/admin/api-keys/{id}/revoke:
+    post:
+      tags:
+        - API Keys
+      summary: Revoke API key (soft delete)
+      description: |
+        Revoke an API key, making it unusable without permanently deleting it.
+        Revoked keys remain in the database for audit purposes. Requires superadmin role.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "API key revoked successfully"
+        '400':
+          description: API key is already revoked
+        '404':
+          description: API key not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Superadmin access required
+

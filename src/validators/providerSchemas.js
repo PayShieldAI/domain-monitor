@@ -84,6 +84,12 @@ const updateProviderSchema = Joi.object({
     .messages({
       'string.min': 'API key must be at least 10 characters'
     }),
+  webhookSecret: Joi.string()
+    .min(20)
+    .max(500)
+    .messages({
+      'string.min': 'Webhook secret must be at least 20 characters'
+    }),
   enabled: Joi.boolean(),
   priority: Joi.number()
     .integer()

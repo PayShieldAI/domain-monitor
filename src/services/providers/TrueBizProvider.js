@@ -591,6 +591,151 @@ class TrueBizProvider extends BaseProvider {
       return null;
     }
   }
+
+  /**
+   * Handle webhook from TrueBiz monitoring alert
+   * Webhook payload: { type: "io.truebiz.monitoring.alert", alert_id, created_at, alert_detail_link, ui_portal_link }
+   * @param {Object} webhookPayload - Webhook payload from TrueBiz
+   * @param {Function} findDomainByExternalRef - Function to find domain by external_ref_id
+   * @returns {Promise<Object>} Processing result
+   */
+  async handleWebhook(webhookPayload, findDomainByExternalRef) {
+    logger.info({
+      provider: 'truebiz',
+      eventType: webhookPayload.type,
+      alertId: webhookPayload.alert_detail_link?.href
+    }, 'Processing TrueBiz webhook');
+
+    try {
+      // Extract alert ID from the detail link
+      const alertDetailUrl = webhookPayload.alert_detail_link?.href;
+      if (!alertDetailUrl) {
+        throw new Error('No alert_detail_link in webhook payload');
+      }
+
+      // Fetch full alert details from TrueBiz API
+      logger.info({ alertDetailUrl }, 'Fetching alert details from TrueBiz');
+      const alertResponse = await this.client.get(alertDetailUrl);
+      const alertData = alertResponse.data;
+
+      logger.info({
+        alertId: alertData.id,
+        domain: alertData.domain,
+        externalRefId: alertData.external_ref_id,
+        flaggedCategories: alertData.flagged_categories
+      }, 'Retrieved alert details from TrueBiz');
+
+      // Find the domain in our database using external_ref_id or domain name
+      let domain = null;
+      if (alertData.external_ref_id) {
+        domain = await findDomainByExternalRef(alertData.external_ref_id);
+        logger.info({
+          externalRefId: alertData.external_ref_id,
+          found: !!domain
+        }, 'Looked up domain by external_ref_id');
+      }
+
+      // If not found by external ref, try by domain name
+      if (!domain && alertData.domain) {
+        const domainRepository = require('../../repositories/domainRepository');
+        domain = await domainRepository.findByDomain(alertData.domain);
+        logger.info({
+          domainName: alertData.domain,
+          found: !!domain
+        }, 'Looked up domain by domain name');
+      }
+
+      if (!domain) {
+        logger.warn({
+          alertDomain: alertData.domain,
+          externalRefId: alertData.external_ref_id
+        }, 'Could not find matching domain for webhook alert');
+
+        return {
+          processed: false,
+          error: 'Domain not found in database',
+          alertData
+        };
+      }
+
+      // Update domain with alert information
+      // For monitoring alerts, we typically want to log the flagged categories
+      // but not change the recommendation unless specified
+      const domainRepository = require('../../repositories/domainRepository');
+
+      // Create a check history entry for this alert
+      await domainRepository.createCheckHistory({
+        domainId: domain.id,
+        recommendation: 'review', // Alerts typically mean something needs review
+        provider: 'truebiz',
+        rawData: alertData
+      });
+
+      logger.info({
+        domainId: domain.id,
+        domain: domain.domain,
+        alertId: alertData.id,
+        flaggedCategories: alertData.flagged_categories
+      }, 'Webhook processed successfully - check history created');
+
+      return {
+        processed: true,
+        domainId: domain.id,
+        domain: domain.domain,
+        alertData,
+        action: 'check_history_created'
+      };
+
+    } catch (error) {
+      logger.error({
+        provider: 'truebiz',
+        error: error.message,
+        webhookPayload
+      }, 'Failed to process TrueBiz webhook');
+
+      throw error;
+    }
+  }
+
+  /**
+   * Verify webhook signature using Svix
+   * @param {string} rawBody - Raw request body
+   * @param {Object} headers - Request headers
+   * @param {string} webhookSecret - Webhook secret for verification
+   * @returns {Promise<Object>} Verified payload
+   */
+  async verifyWebhookSignature(rawBody, headers, webhookSecret) {
+    const { Webhook } = require('svix');
+
+    try {
+      const wh = new Webhook(webhookSecret);
+
+      // Svix verify returns the verified payload
+      const verifiedPayload = wh.verify(rawBody, {
+        'svix-id': headers['svix-id'],
+        'svix-timestamp': headers['svix-timestamp'],
+        'svix-signature': headers['svix-signature']
+      });
+
+      logger.info({ provider: 'truebiz' }, 'Webhook signature verified successfully');
+      return verifiedPayload;
+    } catch (error) {
+      logger.error({
+        provider: 'truebiz',
+        error: error.message
+      }, 'Webhook signature verification failed');
+      throw new Error('Invalid webhook signature');
+    }
+  }
+
+  /**
+   * Process webhook event (signature already verified)
+   * @param {Object} payload - Webhook payload
+   * @returns {Promise<Object>} Processing result
+   */
+  async processWebhook(payload) {
+    return this.handleWebhook(payload);
+  }
 }
 
 module.exports = TrueBizProvider;

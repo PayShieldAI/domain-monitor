@@ -92,6 +92,12 @@ const providerAdminService = {
       delete updates.apiKey;
     }
 
+    // If updating webhook secret, encrypt it
+    if (updates.webhookSecret) {
+      updates.webhookSecretEncrypted = encrypt(updates.webhookSecret);
+      delete updates.webhookSecret;
+    }
+
     // If updating name, check for conflicts
     if (updates.name && updates.name !== existing.name) {
       const conflict = await providerRepository.findByName(updates.name);
@@ -111,6 +117,7 @@ const providerAdminService = {
       displayName: updates.displayName || existing.display_name,
       apiBaseUrl: updates.apiBaseUrl || existing.api_base_url,
       apiKeyEncrypted: updates.apiKeyEncrypted || existing.api_key_encrypted,
+      webhookSecretEncrypted: updates.webhookSecretEncrypted || existing.webhook_secret_encrypted,
       enabled: updates.enabled !== undefined ? updates.enabled : existing.enabled,
       priority: updates.priority !== undefined ? updates.priority : existing.priority,
       rateLimit: updates.rateLimit !== undefined ? updates.rateLimit : existing.rate_limit,
@@ -253,6 +260,7 @@ const providerAdminService = {
       priority: provider.priority,
       apiBaseUrl: provider.api_base_url,
       apiKeyMasked: this.maskApiKey(provider.api_key_encrypted),
+      webhookSecretMasked: this.maskWebhookSecret(provider.webhook_secret_encrypted),
       rateLimit: provider.rate_limit,
       timeout: provider.timeout,
       config: config,
@@ -265,6 +273,16 @@ const providerAdminService = {
    * Mask API key for security
    */
   maskApiKey(encrypted) {
+    if (!encrypted) return 'NOT_SET';
+    const parts = encrypted.split(':');
+    if (parts.length !== 3) return 'INVALID';
+    return `****${parts[2].slice(-4)}`;
+  },
+
+  /**
+   * Mask webhook secret for security
+   */
+  maskWebhookSecret(encrypted) {
     if (!encrypted) return 'NOT_SET';
     const parts = encrypted.split(':');
     if (parts.length !== 3) return 'INVALID';
