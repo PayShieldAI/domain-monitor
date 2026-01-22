@@ -35,7 +35,7 @@ describe('CryptoUtils', () => {
   describe('generateWebhookSecret', () => {
     it('should generate webhook secret with prefix', () => {
       const secret = cryptoUtils.generateWebhookSecret();
-      expect(secret.startsWith('whsec_')).toBe(true);
+      expect(secret.startsWith('whs_')).toBe(true);
     });
   });
 

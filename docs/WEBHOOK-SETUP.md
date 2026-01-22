@@ -72,7 +72,7 @@ curl -X PATCH https://dev-domainmonitor.ipo-servers.net/api/v1/admin/providers/{
   -H "Authorization: Bearer <superadmin_token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "webhookSecret": "whsec_xxxxxxxxxxxxxxxxxxxxx"
+    "webhookSecret": "xxxxxxxxxxxxxxxxxxxxx"
   }'
 
 # You can also update other provider fields at the same time
@@ -80,8 +80,8 @@ curl -X PATCH https://dev-domainmonitor.ipo-servers.net/api/v1/admin/providers/{
   -H "Authorization: Bearer <superadmin_token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "apiKey": "sk_live_xxxxxxxxxx",
-    "webhookSecret": "whsec_xxxxxxxxxxxxxxxxxxxxx",
+    "apiKey": "xxxxxxxxxx",
+    "webhookSecret": "xxxxxxxxxxxxxxxxxxxxx",
     "enabled": true
   }'
 ```

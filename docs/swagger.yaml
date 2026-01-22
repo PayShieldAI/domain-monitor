@@ -1549,7 +1549,7 @@ paths:
                   type: string
                   minLength: 20
                   maxLength: 500
-                  example: whsec_xxxxxxxxxxxxxxxxxxxxxxxx
+                  example: xxxxxxxxxxxxxxxxxxxxxxxxx
                   description: Webhook signing secret (will be encrypted)
                 enabled:
                   type: boolean

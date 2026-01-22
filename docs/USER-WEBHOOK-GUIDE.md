@@ -51,7 +51,7 @@ curl -X POST https://your-domain.com/api/v1/user-webhooks \
     "id": "webhook-uuid",
     "url": "https://your-app.com/webhooks/domain-monitor",
     "events": ["domain.verified", "domain.failed"],
-    "secret": "whsec_abc123...",
+    "secret": "abc123...",
     "enabled": true,
     "createdAt": "2026-01-22T10:30:00.000Z"
   }

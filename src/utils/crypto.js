@@ -39,7 +39,7 @@ const cryptoUtils = {
   },
 
   generateWebhookSecret() {
-    return `whsec_${crypto.randomBytes(24).toString('base64url')}`;
+    return `whs_${crypto.randomBytes(24).toString('base64url')}`;
   }
 };
 
