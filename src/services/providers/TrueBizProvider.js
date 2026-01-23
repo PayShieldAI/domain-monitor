@@ -621,8 +621,12 @@ class TrueBizProvider extends BaseProvider {
   }
 
   /**
-   * Handle webhook from TrueBiz monitoring alert
-   * Webhook payload: { type: "io.truebiz.monitoring.alert", alert_id, created_at, alert_detail_link, ui_portal_link }
+   * Handle webhook from TrueBiz
+   *
+   * Two webhook types:
+   * 1. Company Match Request: { messages, resource_id, resource_type: "companymatchrequest", subject_urn }
+   * 2. Monitoring Alert: { type: "io.truebiz.monitoring.alert", alert_details_link, created_at, ui_portal_link }
+   *
    * @param {Object} webhookPayload - Webhook payload from TrueBiz
    * @param {Function} findDomainByExternalRef - Function to find domain by external_ref_id
    * @returns {Promise<Object>} Processing result
@@ -630,21 +634,106 @@ class TrueBizProvider extends BaseProvider {
   async handleWebhook(webhookPayload, findDomainByExternalRef) {
     logger.info({
       provider: 'truebiz',
-      eventType: webhookPayload.type,
-      alertId: webhookPayload.alert_detail_link?.href
+      eventType: webhookPayload.type || webhookPayload.resource_type,
+      payload: webhookPayload
     }, 'Processing TrueBiz webhook');
 
     try {
-      // Extract alert ID from the detail link
-      const alertDetailUrl = webhookPayload.alert_detail_link?.href;
-      if (!alertDetailUrl) {
-        throw new Error('No alert_detail_link in webhook payload');
+      // Handle different webhook types
+      if (webhookPayload.resource_type === 'companymatchrequest') {
+        return await this.handleCompanyMatchRequest(webhookPayload, findDomainByExternalRef);
+      } else if (webhookPayload.type === 'io.truebiz.monitoring.alert') {
+        return await this.handleMonitoringAlert(webhookPayload, findDomainByExternalRef);
+      } else {
+        logger.warn({ webhookPayload }, 'Unknown TrueBiz webhook type');
+        return {
+          processed: false,
+          error: 'Unknown webhook type',
+          webhookPayload
+        };
       }
+    } catch (error) {
+      logger.error({
+        provider: 'truebiz',
+        error: error.message,
+        stack: error.stack,
+        webhookPayload
+      }, 'Error processing TrueBiz webhook');
+      throw error;
+    }
+  }
 
-      // Fetch full alert details from TrueBiz API
+  /**
+   * Handle company match request webhook
+   */
+  async handleCompanyMatchRequest(webhookPayload, findDomainByExternalRef) {
+    logger.info({
+      resourceId: webhookPayload.resource_id,
+      subjectUrn: webhookPayload.subject_urn,
+      messages: webhookPayload.messages
+    }, 'Processing company match request webhook');
+
+    // For company match requests, we need to extract the domain from subject_urn
+    // Format: urn:domain:example.com
+    const urnMatch = webhookPayload.subject_urn?.match(/urn:domain:(.+)/);
+    const domainName = urnMatch ? urnMatch[1] : null;
+
+    if (!domainName) {
+      logger.warn({ subjectUrn: webhookPayload.subject_urn }, 'Could not extract domain from subject_urn');
+      return {
+        processed: false,
+        error: 'Could not extract domain from subject_urn',
+        webhookPayload
+      };
+    }
+
+    // Find domain in our database
+    const domainRepository = require('../../repositories/domainRepository');
+    const domain = await domainRepository.findByDomain(domainName);
+
+    if (!domain) {
+      logger.warn({ domainName }, 'Domain not found for company match request');
+      return {
+        processed: false,
+        error: 'Domain not found',
+        domainName,
+        webhookPayload
+      };
+    }
+
+    logger.info({
+      domainId: domain.id,
+      domainName,
+      resourceId: webhookPayload.resource_id
+    }, 'Company match request webhook processed');
+
+    return {
+      processed: true,
+      domainId: domain.id,
+      domain: domainName,
+      action: 'company_match_request_received',
+      webhookPayload
+    };
+  }
+
+  /**
+   * Handle monitoring alert webhook
+   */
+  async handleMonitoringAlert(webhookPayload, findDomainByExternalRef) {
+    // Extract alert ID from the detail link (note: it's "alert_details_link" plural, not "alert_detail_link")
+    const alertDetailUrl = webhookPayload.alert_details_link?.href;
+    if (!alertDetailUrl) {
+      logger.error({ webhookPayload }, 'No alert_details_link in monitoring alert payload');
+      throw new Error('No alert_details_link in webhook payload');
+    }
+
+    // Try to fetch full alert details from TrueBiz API
+    // Note: This may fail with 404 if the alert is not yet available or requires different auth
+    let alertData = null;
+    try {
       logger.info({ alertDetailUrl }, 'Fetching alert details from TrueBiz');
       const alertResponse = await this.client.get(alertDetailUrl);
-      const alertData = alertResponse.data;
+      alertData = alertResponse.data;
 
       logger.info({
         alertId: alertData.id,
@@ -652,77 +741,84 @@ class TrueBizProvider extends BaseProvider {
         externalRefId: alertData.external_ref_id,
         flaggedCategories: alertData.flagged_categories
       }, 'Retrieved alert details from TrueBiz');
+    } catch (error) {
+      logger.warn({
+        alertDetailUrl,
+        error: error.message,
+        status: error.response?.status
+      }, 'Could not fetch alert details from TrueBiz API - webhook logged but no domain action taken');
 
-      // Find the domain in our database using external_ref_id or domain name
-      let domain = null;
-      if (alertData.external_ref_id) {
-        domain = await findDomainByExternalRef(alertData.external_ref_id);
-        logger.info({
-          externalRefId: alertData.external_ref_id,
-          found: !!domain
-        }, 'Looked up domain by external_ref_id');
-      }
+      // If we can't fetch details, we can't process this alert fully
+      // Return early with the webhook data logged
+      return {
+        processed: true,
+        error: 'Alert details not accessible via API',
+        note: 'Webhook received and logged, but full alert details could not be retrieved',
+        alertDetailUrl,
+        webhookPayload
+      };
+    }
 
-      // If not found by external ref, try by domain name
-      if (!domain && alertData.domain) {
-        const domainRepository = require('../../repositories/domainRepository');
-        domain = await domainRepository.findByDomain(alertData.domain);
-        logger.info({
-          domainName: alertData.domain,
-          found: !!domain
-        }, 'Looked up domain by domain name');
-      }
-
-      if (!domain) {
-        logger.warn({
-          alertDomain: alertData.domain,
-          externalRefId: alertData.external_ref_id
-        }, 'Could not find matching domain for webhook alert');
-
-        return {
-          processed: false,
-          error: 'Domain not found in database',
-          alertData
-        };
-      }
-
-      // Update domain with alert information
-      // For monitoring alerts, we typically want to log the flagged categories
-      // but not change the recommendation unless specified
-      const domainRepository = require('../../repositories/domainRepository');
-
-      // Create a check history entry for this alert
-      await domainRepository.createCheckHistory({
-        domainId: domain.id,
-        recommendation: 'review', // Alerts typically mean something needs review
-        provider: 'truebiz',
-        rawData: alertData
-      });
-
+    // Find the domain in our database using external_ref_id or domain name
+    let domain = null;
+    if (alertData.external_ref_id) {
+      domain = await findDomainByExternalRef(alertData.external_ref_id);
       logger.info({
-        domainId: domain.id,
-        domain: domain.domain,
-        alertId: alertData.id,
-        flaggedCategories: alertData.flagged_categories
-      }, 'Webhook processed successfully - check history created');
+        externalRefId: alertData.external_ref_id,
+        found: !!domain
+      }, 'Looked up domain by external_ref_id');
+    }
+
+    // If not found by external ref, try by domain name
+    if (!domain && alertData.domain) {
+      const domainRepository = require('../../repositories/domainRepository');
+      domain = await domainRepository.findByDomain(alertData.domain);
+      logger.info({
+        domainName: alertData.domain,
+        found: !!domain
+      }, 'Looked up domain by domain name');
+    }
+
+    if (!domain) {
+      logger.warn({
+        alertDomain: alertData.domain,
+        externalRefId: alertData.external_ref_id
+      }, 'Could not find matching domain for webhook alert');
 
       return {
         processed: true,
-        domainId: domain.id,
-        domain: domain.domain,
-        alertData,
-        action: 'check_history_created'
+        note: 'Alert received but domain not found in database',
+        alertData
       };
-
-    } catch (error) {
-      logger.error({
-        provider: 'truebiz',
-        error: error.message,
-        webhookPayload
-      }, 'Failed to process TrueBiz webhook');
-
-      throw error;
     }
+
+    // Update domain with alert information
+    // For monitoring alerts, we typically want to log the flagged categories
+    // but not change the recommendation unless specified
+    const domainRepository = require('../../repositories/domainRepository');
+
+    // Create a check history entry for this alert
+    await domainRepository.createCheckHistory({
+      domainId: domain.id,
+      recommendation: 'review', // Alerts typically mean something needs review
+      provider: 'truebiz',
+      rawData: alertData
+    });
+
+    logger.info({
+      domainId: domain.id,
+      domain: domain.domain,
+      alertId: alertData.id,
+      flaggedCategories: alertData.flagged_categories
+    }, 'Monitoring alert webhook processed successfully - check history created');
+
+    return {
+      processed: true,
+      domainId: domain.id,
+      domain: domain.domain,
+      alertData,
+      action: 'check_history_created'
+    };
   }
 
   /**

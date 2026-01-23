@@ -35,6 +35,7 @@ const webhookController = {
     const { provider } = req.params;
     let payload = req.body;
     let verified = false;
+    let signature = null;
 
     logger.info({
       provider,
@@ -56,6 +57,14 @@ const webhookController = {
         throw new AppError(`Provider not initialized: ${provider}`, 500, 'PROVIDER_NOT_INITIALIZED');
       }
 
+      // Extract signature from headers (provider-specific)
+      // Common signature headers: x-signature, x-webhook-signature, signature
+      signature = req.headers['x-signature'] ||
+                  req.headers['x-webhook-signature'] ||
+                  req.headers['signature'] ||
+                  req.headers['x-truebiz-signature'] ||
+                  null;
+
       // Verify webhook signature using provider-specific implementation
       if (providerConfig.webhook_secret_encrypted) {
         try {
@@ -73,6 +82,8 @@ const webhookController = {
           // Use the verified payload
           payload = verifiedPayload;
           verified = true;
+
+          logger.info({ provider }, 'Webhook signature verified successfully');
         } catch (err) {
           logger.error({
             provider,

@@ -1474,9 +1474,21 @@ paths:
       tags:
         - User Webhooks
       summary: List webhook endpoints
-      description: Get all registered webhook endpoints for the authenticated user
+      description: |
+        Get all registered webhook endpoints for the authenticated user.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to list webhooks for other users.
       security:
         - BearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, lists webhooks for the authenticated user.
       responses:
         '200':
           description: Webhook endpoints retrieved
@@ -1515,6 +1527,10 @@ paths:
         **Webhook Signature Verification:**
         The secret returned on creation is used to sign webhook payloads using HMAC-SHA256.
         Verify the signature in the `X-Webhook-Signature` header to ensure authenticity.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to create webhooks for other users.
+        Merchants can only create webhooks for themselves.
       security:
         - BearerAuth: []
       requestBody:
@@ -1526,6 +1542,11 @@ paths:
               required:
                 - url
               properties:
+                userId:
+                  type: string
+                  format: uuid
+                  example: 550e8400-e29b-41d4-a716-446655440000
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, webhook is created for the authenticated user.
                 url:
                   type: string
                   format: uri
@@ -1583,7 +1604,11 @@ paths:
       tags:
         - User Webhooks
       summary: Get webhook endpoint
-      description: Retrieve details of a specific webhook endpoint
+      description: |
+        Retrieve details of a specific webhook endpoint.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to view webhooks for other users.
       security:
         - BearerAuth: []
       parameters:
@@ -1593,6 +1618,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, retrieves webhook for the authenticated user.
       responses:
         '200':
           description: Webhook endpoint retrieved
@@ -1615,7 +1647,11 @@ paths:
       tags:
         - User Webhooks
       summary: Update webhook endpoint
-      description: Update webhook endpoint configuration. All fields are optional.
+      description: |
+        Update webhook endpoint configuration. All fields are optional.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to update webhooks for other users.
       security:
         - BearerAuth: []
       parameters:
@@ -1632,6 +1668,10 @@ paths:
             schema:
               type: object
               properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, updates webhook for the authenticated user.
                 url:
                   type: string
                   format: uri
@@ -1679,7 +1719,11 @@ paths:
       tags:
         - User Webhooks
       summary: Delete webhook endpoint
-      description: Remove a webhook endpoint. This action cannot be undone.
+      description: |
+        Remove a webhook endpoint. This action cannot be undone.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to delete webhooks for other users.
       security:
         - BearerAuth: []
       parameters:
@@ -1689,6 +1733,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, deletes webhook for the authenticated user.
       responses:
         '200':
           description: Webhook endpoint deleted
@@ -1713,6 +1764,9 @@ paths:
       description: |
         Send a test webhook to verify the endpoint is working.
         This sends a sample `domain.verified` event to your endpoint.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to test webhooks for other users.
       security:
         - BearerAuth: []
       parameters:
@@ -1722,6 +1776,17 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, tests webhook for the authenticated user.
       responses:
         '200':
           description: Test webhook sent
@@ -1760,6 +1825,9 @@ paths:
         Generate a new signing secret for the webhook endpoint.
         The old secret will be immediately invalidated.
         Update your webhook handler with the new secret.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to regenerate secrets for other users' webhooks.
       security:
         - BearerAuth: []
       parameters:
@@ -1769,6 +1837,17 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, regenerates secret for the authenticated user's webhook.
       responses:
         '200':
           description: Secret regenerated
@@ -1800,6 +1879,9 @@ paths:
       description: |
         Get delivery logs for a webhook endpoint.
         Useful for debugging webhook delivery issues.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to view delivery logs for other users' webhooks.
       security:
         - BearerAuth: []
       parameters:
@@ -1809,6 +1891,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, retrieves logs for the authenticated user's webhook.
         - name: limit
           in: query
           schema:

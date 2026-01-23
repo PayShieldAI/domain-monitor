@@ -6,45 +6,13 @@ info:
 
     ## Overview
     This API allows merchants to monitor their domain reputation and verification status.
-    All endpoints use JWT Bearer token authentication - no API keys required.
+    All endpoints use JWT Bearer token authentication 
 
     ## Authentication
-    All endpoints (except login and registration) require JWT authentication.
+    All endpoints require JWT authentication.
 
     ```
     Authorization: Bearer <your_access_token>
-    ```
-
-    Get your token by calling `/api/v1/auth/login` with your merchant credentials.
-
-    ## Quick Start
-
-    ### 1. Login
-    ```bash
-    curl -X POST https://your-domain.com/api/v1/auth/login \
-      -H "Content-Type: application/json" \
-      -d '{
-        "email": "merchant@example.com",
-        "password": "YourSecurePassword123"
-      }'
-    ```
-
-    ### 2. Access Your Domains
-    ```bash
-    curl -X GET https://your-domain.com/api/v1/domains \
-      -H "Authorization: Bearer <your_access_token>"
-    ```
-
-    ### 3. Add a Domain
-    ```bash
-    curl -X POST https://your-domain.com/api/v1/domains \
-      -H "Authorization: Bearer <your_access_token>" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "domain": "example.com",
-        "name": "Example Domain",
-        "checkFrequency": "7"
-      }'
     ```
 
   version: 1.0.0
@@ -58,231 +26,14 @@ servers:
     description: Production server
 
 tags:
-  - name: Authentication
-    description: Login and token management
+  
   - name: Domains
     description: Domain monitoring and management
   - name: User Webhooks
     description: Register webhooks to receive domain event notifications
 
 paths:
-  # ==========================================
-  # AUTHENTICATION
-  # ==========================================
-  /api/v1/auth/login:
-    post:
-      tags:
-        - Authentication
-      summary: Merchant login
-      description: |
-        Authenticate and receive JWT access and refresh tokens.
-
-        **Note:** If you already have a valid stored access token, the same token will be returned.
-        New tokens are only generated when no token exists or when the existing token is invalid.
-      operationId: login
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: merchant@example.com
-                password:
-                  type: string
-                  format: password
-                  example: SecurePassword123
-      responses:
-        '200':
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Login successful
-                  data:
-                    type: object
-                    properties:
-                      accessToken:
-                        type: string
-                        description: JWT access token (returns existing token if valid, otherwise generates new one)
-                      refreshToken:
-                        type: string
-                        description: JWT refresh token (valid for 7 days)
-                      expiresIn:
-                        type: integer
-                        nullable: true
-                        example: null
-                        description: Token expiry in seconds (null means never expires)
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-
-  /api/v1/auth/refresh:
-    post:
-      tags:
-        - Authentication
-      summary: Refresh access token
-      description: Get a new access token using a refresh token
-      operationId: refreshToken
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - refreshToken
-              properties:
-                refreshToken:
-                  type: string
-                  description: The refresh token received during login
-      responses:
-        '200':
-          description: Token refreshed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Token refreshed
-                  data:
-                    type: object
-                    properties:
-                      accessToken:
-                        type: string
-                      expiresIn:
-                        type: integer
-                        example: 900
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-  /api/v1/auth/logout:
-    post:
-      tags:
-        - Authentication
-      summary: Logout
-      description: Revoke all refresh tokens for the current user
-      operationId: logout
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Logout successful
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Logout successful
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-  /api/v1/auth/change-password:
-    post:
-      tags:
-        - Authentication
-      summary: Change password
-      description: Change the current user's password
-      operationId: changePassword
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - currentPassword
-                - newPassword
-              properties:
-                currentPassword:
-                  type: string
-                  format: password
-                newPassword:
-                  type: string
-                  format: password
-                  minLength: 8
-                  description: Must be at least 8 characters
-      responses:
-        '200':
-          description: Password changed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Password changed successfully
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-  /api/v1/auth/me/token:
-    get:
-      tags:
-        - Authentication
-      summary: Get user access token
-      description: |
-        Retrieve the current user's stored access token. If no token exists or the existing token is invalid/expired,
-        a new token will be generated and stored automatically.
-
-        **Note:** Access tokens do not expire by default (JWT_ACCESS_EXPIRY='never'). The same token will be returned
-        on subsequent logins and when calling this endpoint.
-      operationId: getMyToken
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Token retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Token retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      accessToken:
-                        type: string
-                        description: JWT access token
-                      expiresIn:
-                        type: integer
-                        nullable: true
-                        example: null
-                        description: Token expiry in seconds (null means never expires)
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          description: Account is not active
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Account is not active
-                code: ACCOUNT_INACTIVE
-
+ 
   # ==========================================
   # DOMAINS
   # ==========================================
@@ -436,8 +187,13 @@ paths:
     get:
       tags:
         - Domains
-      summary: Get domain verification details
-      description: Get comprehensive verification details from the provider
+      summary: Get domain verification details with raw provider data
+      description: |
+        Get comprehensive verification details including the complete raw response from the provider.
+
+        **Important:** This endpoint returns the full raw JSON response from the verification provider
+        in the `web_presence.rawData` field. This includes all data points collected during the
+        web presence review.
       operationId: getDomainDetails
       security:
         - BearerAuth: []
@@ -450,7 +206,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Domain details retrieved successfully
+          description: Domain details with raw provider data retrieved successfully
           content:
             application/json:
               schema:
@@ -459,13 +215,34 @@ paths:
                   message:
                     type: string
                   data:
-                    type: object
-                    properties:
-                      domain:
-                        $ref: '#/components/schemas/Domain'
-                      verificationData:
-                        type: object
-                        description: Provider-specific verification data
+                    allOf:
+                      - $ref: '#/components/schemas/Domain'
+                      - type: object
+                        properties:
+                          web_presence:
+                            type: object
+                            properties:
+                              recommendation:
+                                type: string
+                                enum: [pass, fail, review]
+                              businessName:
+                                type: string
+                              industry:
+                                type: string
+                              businessType:
+                                type: string
+                              foundedYear:
+                                type: integer
+                              provider:
+                                type: string
+                              rawData:
+                                type: object
+                                description: Complete raw JSON response from the verification provider
+                                nullable: true
+                              providerResponseId:
+                                type: string
+                                description: Provider's unique response/transaction ID
+                                nullable: true
         '404':
           $ref: '#/components/responses/NotFoundError'
         '401':
@@ -732,86 +509,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-    post:
-      tags:
-        - User Webhooks
-      summary: Register webhook endpoint
-      description: |
-        Register a new webhook endpoint to receive domain event notifications.
-
-        **Event Types:**
-        - `domain.created` - Domain registered
-        - `domain.updated` - Domain modified
-        - `domain.deleted` - Domain removed
-        - `domain.verified` - Domain verification successful
-        - `domain.failed` - Domain verification failed
-        - `domain.check.completed` - Periodic check completed
-
-        **Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.
-      operationId: createWebhookEndpoint
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - url
-              properties:
-                url:
-                  type: string
-                  format: uri
-                  maxLength: 2048
-                  example: https://your-app.com/webhooks/domain-monitor
-                  description: HTTPS URL to receive webhook events
-                events:
-                  type: array
-                  nullable: true
-                  items:
-                    type: string
-                    enum:
-                      - domain.created
-                      - domain.updated
-                      - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
-                  example: ["domain.verified", "domain.failed"]
-                  description: Event types to subscribe to. Omit or set to null to receive all events.
-                description:
-                  type: string
-                  maxLength: 500
-                  example: Production webhook endpoint
-      responses:
-        '201':
-          description: Webhook endpoint created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Webhook endpoint created successfully
-                  warning:
-                    type: string
-                    example: Store the secret securely. It will not be shown again.
-                  data:
-                    allOf:
-                      - $ref: '#/components/schemas/WebhookEndpoint'
-                      - type: object
-                        properties:
-                          secret:
-                            type: string
-                            example: abc123...
-                            description: Webhook signing secret (only shown once)
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
+    
   /api/v1/user-webhooks/{id}:
     get:
       tags:

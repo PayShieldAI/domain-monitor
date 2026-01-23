@@ -7,6 +7,7 @@ const providerRoutes = require('./providers');
 const webhookRoutes = require('./webhookRoutes');
 const apiKeyRoutes = require('./apiKeyRoutes');
 const userWebhookRoutes = require('./userWebhookRoutes');
+const apiLogRoutes = require('./apiLogs');
 
 const router = express.Router();
 
@@ -19,6 +20,7 @@ router.use('/api/v1/users', userRoutes);
 router.use('/api/v1/domains', domainRoutes);
 router.use('/api/v1/admin/providers', providerRoutes);
 router.use('/api/v1/admin/api-keys', apiKeyRoutes);
+router.use('/api/v1/admin/api-logs', apiLogRoutes);
 router.use('/api/v1/webhooks', webhookRoutes);
 router.use('/api/v1/user-webhooks', userWebhookRoutes);
 // router.use('/api/v1/events', eventRoutes);
