@@ -705,11 +705,11 @@ curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
   -d '{
     "domain": "merchant-domain.com",
     "checkFrequency": "daily",
-    "merchantId": "merchant-user-uuid"
+    "userId": "merchant-user-uuid"
   }'
 ```
 
-The `merchantId` field is only available to superadmin and reseller roles.
+The `userId` field is only available to superadmin and reseller roles.
 
 ---
 

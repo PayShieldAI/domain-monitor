@@ -103,12 +103,12 @@ A microservice that:
 ### 4.1 Domain Management
 
 #### FR-01: Add Single Domain
-- **Input:** Domain name, optional check frequency, optional merchantId
+- **Input:** Domain name, optional check frequency, optional userId
 - **Validation:**
   - Domain must be valid format (RFC 1035)
   - Domain max length: 255 characters
   - Check frequency: 7, 30, or 90 days (default: 7)
-  - merchantId: Valid user UUID (superadmin/reseller only)
+  - userId: Valid user UUID (superadmin/reseller only)
 - **Behavior:**
   - Create domain record with status "active"
   - Queue initial TrueBiz check
@@ -116,14 +116,14 @@ A microservice that:
   - If check frequency is specified, domain montiroing is started with the provider
   - If no check frequency is specified, a web presence review is returned
 - **Authorization:**
-  - Superadmin/Reseller: Can specify `merchantId` to add domains for a merchant
-  - Merchant: Cannot specify merchantId, domains added to own account
+  - Superadmin/Reseller: Can specify `userId` to add domains for a merchant user
+  - Merchant: Cannot specify userId, domains added to own account
 - **Constraints:**
   - User cannot add duplicate domains
   - Maximum 10,000 domains per user
 
 #### FR-02: Add Domains in Bulk
-- **Input:** Array of domain objects (max 100 per request), optional merchantId
+- **Input:** Array of domain objects (max 100 per request), optional userId
 - **Behavior:**
   - Validate each domain independently
   - Create valid domains, collect errors for invalid ones
@@ -131,8 +131,8 @@ A microservice that:
   - Log all provider API calls (request and response)
   - Return success/failure breakdown including provider check results
 - **Authorization:**
-  - Superadmin/Reseller: Can specify `merchantId` to add domains for a merchant
-  - Merchant: Cannot specify merchantId, domains added to own account
+  - Superadmin/Reseller: Can specify `userId` to add domains for a merchant user
+  - Merchant: Cannot specify userId, domains added to own account
 - **Response:**
   - `success`: Array of created domains
   - `failed`: Array of domains that failed to create
@@ -654,13 +654,13 @@ ProviderApiLog {
 - Can manage providers (CRUD operations)
 - Can view/manage all users' domains
 - Can create/update/delete any domain
-- Can add domains on behalf of any merchant (via `merchantId` parameter)
+- Can add domains on behalf of any merchant user (via `userId` parameter)
 - Can access all admin endpoints
 
 **Reseller Role:**
-- Can add domains on behalf of assigned merchants (via `merchantId` parameter)
-- Can list domains for all assigned merchants
-- Can view domain details for assigned merchants
+- Can add domains on behalf of assigned merchant user (via `userId` parameter)
+- Can list domains for all assigned merchant users
+- Can view domain details for assigned merchant users
 - Cannot manage providers
 - Cannot access admin endpoints
 

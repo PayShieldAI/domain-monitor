@@ -28,17 +28,17 @@ function getUserContext(req) {
 const domainController = {
   async create(req, res, next) {
     try {
-      const { merchantId, ...domainData } = req.body;
+      const { userId, ...domainData } = req.body;
 
       const userContext = getUserContext(req);
       if (!userContext) {
         return next(new Error('User context not found'));
       }
 
-      // Determine target user: superadmin/reseller/API key can specify merchantId
+      // Determine target user: superadmin/reseller/API key can specify userId
       const canSpecifyMerchant = isSuperadmin(userContext) || isReseller(userContext) || userContext.isApiKey;
-      const targetUserId = canSpecifyMerchant && merchantId
-        ? merchantId
+      const targetUserId = canSpecifyMerchant && userId
+        ? userId
         : userContext.id;
 
       const result = await domainService.addDomain(targetUserId, domainData);
@@ -54,17 +54,17 @@ const domainController = {
 
   async bulkCreate(req, res, next) {
     try {
-      const { domains, merchantId } = req.body;
+      const { domains, userId } = req.body;
 
       const userContext = getUserContext(req);
       if (!userContext) {
         return next(new Error('User context not found'));
       }
 
-      // Determine target user: superadmin/reseller/API key can specify merchantId
+      // Determine target user: superadmin/reseller/API key can specify userId
       const canSpecifyMerchant = isSuperadmin(userContext) || isReseller(userContext) || userContext.isApiKey;
-      const targetUserId = canSpecifyMerchant && merchantId
-        ? merchantId
+      const targetUserId = canSpecifyMerchant && userId
+        ? userId
         : userContext.id;
 
       const result = await domainService.addDomainsBulk(targetUserId, domains);
