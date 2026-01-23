@@ -54,7 +54,7 @@ const createDomainSchema = Joi.object({
     }),
 
   // Admin use
-  merchantId: Joi.string()
+  userId: Joi.string()
     .uuid()
     .messages({
       'string.guid': 'Please provide a valid merchant ID'
@@ -114,7 +114,7 @@ const bulkCreateDomainsSchema = Joi.object({
       'array.max': 'Maximum 100 domains per request'
     }),
 
-  merchantId: Joi.string()
+  userId: Joi.string()
     .uuid()
     .messages({
       'string.guid': 'Please provide a valid merchant ID'

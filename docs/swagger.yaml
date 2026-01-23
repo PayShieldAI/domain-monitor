@@ -932,7 +932,7 @@ paths:
       description: |
         Add a domain or business to monitor. Either `domain` or `name` (business name) is required.
 
-        Superadmins and resellers can optionally specify a `merchantId` to add domains on behalf of a merchant.
+        Superadmins and resellers can optionally specify a `userId` to add domains on behalf of a merchant user.
 
         Additional business information (address, contact details) can be provided for better matching.
 
@@ -1017,7 +1017,7 @@ paths:
 
                     If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
                     When provided, this value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
-                merchantId:
+                userId:
                   type: string
                   format: uuid
                   description: |
@@ -1050,7 +1050,7 @@ paths:
 
         The response includes both creation results and provider check results.
 
-        Superadmins and resellers can optionally specify a `merchantId` to add domains on behalf of a merchant.
+        Superadmins and resellers can optionally specify a `userId` to add domains on behalf of a merchant user.
       security:
         - BearerAuth: []
       requestBody:
@@ -1127,7 +1127,7 @@ paths:
 
                           If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
                           When provided, this value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
-                merchantId:
+                userId:
                   type: string
                   format: uuid
                   description: |
