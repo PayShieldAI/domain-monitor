@@ -525,7 +525,22 @@ const domainService = {
     const response = this.formatDomainResponse(domain, submission);
 
     // Add raw provider data and response ID to web_presence
-    response.web_presence.rawData = domain.raw_data ? JSON.parse(domain.raw_data) : null;
+    // MySQL JSON columns are automatically parsed by mysql2, but handle string case too
+    let rawData = null;
+    if (domain.raw_data) {
+      if (typeof domain.raw_data === 'string') {
+        try {
+          rawData = JSON.parse(domain.raw_data);
+        } catch (err) {
+          logger.warn({ domainId: domain.id, error: err.message }, 'Failed to parse raw_data');
+          rawData = domain.raw_data;
+        }
+      } else {
+        rawData = domain.raw_data;
+      }
+    }
+
+    response.web_presence.rawData = rawData;
     response.web_presence.providerResponseId = domain.provider_response_id;
 
     return response;

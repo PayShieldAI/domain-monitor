@@ -113,6 +113,8 @@ A microservice that:
   - Create domain record with status "active"
   - Queue initial TrueBiz check
   - Return created domain with ID
+  - If check frequency is specified, domain montiroing is started with the provider
+  - If no check frequency is specified, a web presence review is returned
 - **Authorization:**
   - Superadmin/Reseller: Can specify `merchantId` to add domains for a merchant
   - Merchant: Cannot specify merchantId, domains added to own account

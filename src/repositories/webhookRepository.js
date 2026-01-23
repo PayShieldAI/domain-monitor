@@ -15,8 +15,12 @@ const webhookRepository = {
   async findById(id) {
     const sql = 'SELECT * FROM webhook_events WHERE id = ?';
     const event = await queryOne(sql, [id]);
-    if (event && event.payload) {
-      event.payload = JSON.parse(event.payload);
+    if (event && event.payload && typeof event.payload === 'string') {
+      try {
+        event.payload = JSON.parse(event.payload);
+      } catch (err) {
+        // Already parsed or invalid JSON, leave as is
+      }
     }
     return event;
   },
@@ -50,8 +54,12 @@ const webhookRepository = {
 
     const events = await query(sql, params);
     return events.map(e => {
-      if (e.payload) {
-        e.payload = JSON.parse(e.payload);
+      if (e.payload && typeof e.payload === 'string') {
+        try {
+          e.payload = JSON.parse(e.payload);
+        } catch (err) {
+          // Already parsed or invalid JSON, leave as is
+        }
       }
       return e;
     });
@@ -70,8 +78,12 @@ const webhookRepository = {
 
     const events = await query(sql, params);
     return events.map(e => {
-      if (e.payload) {
-        e.payload = JSON.parse(e.payload);
+      if (e.payload && typeof e.payload === 'string') {
+        try {
+          e.payload = JSON.parse(e.payload);
+        } catch (err) {
+          // Already parsed or invalid JSON, leave as is
+        }
       }
       return e;
     });
