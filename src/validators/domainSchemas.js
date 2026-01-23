@@ -46,9 +46,12 @@ const createDomainSchema = Joi.object({
 
   // Check settings - if not provided, no monitoring will be started (one-time check only)
   checkFrequency: Joi.string()
-    .valid('daily', 'weekly', 'monthly')
+    .valid('7', '30', '90')
     .optional()
-    .allow(null),
+    .allow(null)
+    .messages({
+      'any.only': 'Check frequency must be 7, 30, or 90 days'
+    }),
 
   // Admin use
   merchantId: Joi.string()
@@ -90,9 +93,12 @@ const bulkDomainItemSchema = Joi.object({
 
   // Check settings - if not provided, no monitoring will be started (one-time check only)
   checkFrequency: Joi.string()
-    .valid('daily', 'weekly', 'monthly')
+    .valid('7', '30', '90')
     .optional()
     .allow(null)
+    .messages({
+      'any.only': 'Check frequency must be 7, 30, or 90 days'
+    })
 }).or('domain', 'name').messages({
   'object.missing': 'Either domain or business name is required'
 });

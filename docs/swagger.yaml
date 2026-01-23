@@ -6,12 +6,20 @@ info:
 
     ## Features
     - User authentication with JWT tokens and API keys
-    - Domain monitoring with configurable check frequencies
+    - Domain monitoring with configurable check frequencies (7, 30, or 90 days)
     - Bulk operations support
     - Multi-provider architecture (TrueBiz primary)
     - Machine-to-machine authentication via API keys
     - Real-time updates via SSE (coming soon)
     - Webhook notifications
+
+    ## Check Frequency Options
+    When creating or monitoring domains, you can specify how often the domain should be checked:
+    - **7 days**: Check the domain every 7 days (weekly monitoring)
+    - **30 days**: Check the domain every 30 days (monthly monitoring)
+    - **90 days**: Check the domain every 90 days (quarterly monitoring)
+
+    The `checkFrequency` parameter controls this behavior. If omitted, the domain will only receive a one-time check without ongoing monitoring.
 
     ## Authentication
 
@@ -88,6 +96,8 @@ tags:
     description: User profile management
   - name: Domains
     description: Domain monitoring operations
+  - name: User Webhooks
+    description: Register webhooks to receive domain event notifications
   - name: Providers
     description: Provider management (Superadmin only)
   - name: API Keys
@@ -194,7 +204,14 @@ components:
           nullable: true
         checkFrequency:
           type: string
-          enum: [daily, weekly, monthly]
+          enum: ['7', '30', '90']
+          description: |
+            Monitoring frequency in days:
+            - '7': Weekly monitoring (every 7 days)
+            - '30': Monthly monitoring (every 30 days)
+            - '90': Quarterly monitoring (every 90 days)
+
+            This value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
         lastCheckedAt:
           type: string
           format: date-time
@@ -326,6 +343,87 @@ components:
             name:
               type: string
               nullable: true
+
+    WebhookEndpoint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+          example: https://your-app.com/webhooks
+        events:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example: ["domain.verified", "domain.failed"]
+          description: Subscribed event types. null means all events.
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        lastDeliveryAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedDeliveries:
+          type: integer
+          description: Consecutive failed delivery count
+        totalDeliveries:
+          type: integer
+        successfulDeliveries:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WebhookDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          example: domain.verified
+        domainId:
+          type: string
+          format: uuid
+          nullable: true
+        attemptNumber:
+          type: integer
+        status:
+          type: string
+          enum: [pending, success, failed, retrying]
+        responseStatus:
+          type: integer
+          nullable: true
+          example: 200
+        durationMs:
+          type: integer
+          nullable: true
+          example: 245
+        errorMessage:
+          type: string
+          nullable: true
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
 
 paths:
   /health:
@@ -849,6 +947,13 @@ paths:
         Superadmins and resellers can optionally specify a `merchantId` to add domains on behalf of a merchant.
 
         Additional business information (address, contact details) can be provided for better matching.
+
+        Monitoring frequency in days:
+                    - '7': Weekly monitoring (every 7 days)
+                    - '30': Monthly monitoring (every 30 days)
+                    - '90': Quarterly monitoring (every 90 days)
+
+        If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
       security:
         - BearerAuth: []
       requestBody:
@@ -914,11 +1019,16 @@ paths:
                   description: External tracking reference ID
                 checkFrequency:
                   type: string
-                  enum: [daily, weekly, monthly]
+                  enum: ['7', '30', '90']
                   nullable: true
                   description: |
-                    Monitoring frequency. If not provided (null/empty), no ongoing monitoring
-                    will be started - only a one-time domain/company check is performed.
+                    Monitoring frequency in days:
+                    - '7': Weekly monitoring (every 7 days)
+                    - '30': Monthly monitoring (every 30 days)
+                    - '90': Quarterly monitoring (every 90 days)
+
+                    If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
+                    When provided, this value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
                 merchantId:
                   type: string
                   format: uuid
@@ -1019,11 +1129,16 @@ paths:
                         maxLength: 255
                       checkFrequency:
                         type: string
-                        enum: [daily, weekly, monthly]
+                        enum: ['7', '30', '90']
                         nullable: true
                         description: |
-                          Monitoring frequency. If not provided (null/empty), no ongoing monitoring
-                          will be started - only a one-time domain/company check is performed.
+                          Monitoring frequency in days:
+                          - '7': Weekly monitoring (every 7 days)
+                          - '30': Monthly monitoring (every 30 days)
+                          - '90': Quarterly monitoring (every 90 days)
+
+                          If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
+                          When provided, this value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
                 merchantId:
                   type: string
                   format: uuid
@@ -1365,6 +1480,373 @@ paths:
                       type: string
                   message:
                     type: string
+
+  /api/v1/user-webhooks:
+    get:
+      tags:
+        - User Webhooks
+      summary: List webhook endpoints
+      description: Get all registered webhook endpoints for the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Webhook endpoints retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Webhook endpoints retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookEndpoint'
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - User Webhooks
+      summary: Register webhook endpoint
+      description: |
+        Register a new webhook endpoint to receive domain event notifications.
+
+        **Event Types:**
+        - `domain.created` - Domain registered
+        - `domain.updated` - Domain modified
+        - `domain.deleted` - Domain removed
+        - `domain.verified` - Domain verification successful
+        - `domain.failed` - Domain verification failed
+        - `domain.check.completed` - Periodic check completed
+
+        **Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.
+
+        **Webhook Signature Verification:**
+        The secret returned on creation is used to sign webhook payloads using HMAC-SHA256.
+        Verify the signature in the `X-Webhook-Signature` header to ensure authenticity.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  example: https://your-app.com/webhooks/domain-monitor
+                  description: HTTPS URL to receive webhook events
+                events:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                    enum:
+                      - domain.created
+                      - domain.updated
+                      - domain.deleted
+                      - domain.verified
+                      - domain.failed
+                      - domain.check.completed
+                  example: ["domain.verified", "domain.failed"]
+                  description: Event types to subscribe to. Omit or set to null to receive all events.
+                description:
+                  type: string
+                  maxLength: 500
+                  example: Production webhook endpoint
+      responses:
+        '201':
+          description: Webhook endpoint created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Webhook endpoint created successfully
+                  warning:
+                    type: string
+                    example: Store the secret securely. It will not be shown again.
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/WebhookEndpoint'
+                      - type: object
+                        properties:
+                          secret:
+                            type: string
+                            example: whsec_abc123def456...
+                            description: Webhook signing secret (only shown once)
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  /api/v1/user-webhooks/{id}:
+    get:
+      tags:
+        - User Webhooks
+      summary: Get webhook endpoint
+      description: Retrieve details of a specific webhook endpoint
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Webhook endpoint retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Webhook endpoint retrieved successfully
+                  data:
+                    $ref: '#/components/schemas/WebhookEndpoint'
+        '404':
+          description: Webhook endpoint not found
+        '401':
+          description: Unauthorized
+
+    patch:
+      tags:
+        - User Webhooks
+      summary: Update webhook endpoint
+      description: Update webhook endpoint configuration. All fields are optional.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                events:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                    enum:
+                      - domain.created
+                      - domain.updated
+                      - domain.deleted
+                      - domain.verified
+                      - domain.failed
+                      - domain.check.completed
+                  description: Event types to subscribe to. Set to null for all events.
+                description:
+                  type: string
+                  maxLength: 500
+                enabled:
+                  type: boolean
+                  description: Enable or disable the webhook endpoint
+      responses:
+        '200':
+          description: Webhook endpoint updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Webhook endpoint updated successfully
+                  data:
+                    $ref: '#/components/schemas/WebhookEndpoint'
+        '400':
+          description: Validation error
+        '404':
+          description: Webhook endpoint not found
+        '401':
+          description: Unauthorized
+
+    delete:
+      tags:
+        - User Webhooks
+      summary: Delete webhook endpoint
+      description: Remove a webhook endpoint. This action cannot be undone.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Webhook endpoint deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Webhook endpoint deleted successfully
+        '404':
+          description: Webhook endpoint not found
+        '401':
+          description: Unauthorized
+
+  /api/v1/user-webhooks/{id}/test:
+    post:
+      tags:
+        - User Webhooks
+      summary: Test webhook endpoint
+      description: |
+        Send a test webhook to verify the endpoint is working.
+        This sends a sample `domain.verified` event to your endpoint.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Test webhook sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Test webhook sent successfully
+                  data:
+                    type: object
+                    properties:
+                      success:
+                        type: boolean
+                      status:
+                        type: integer
+                        example: 200
+                        description: HTTP response status from your endpoint
+                      deliveryLogId:
+                        type: string
+                        format: uuid
+                        description: Delivery log ID for tracking
+        '404':
+          description: Webhook endpoint not found
+        '401':
+          description: Unauthorized
+
+  /api/v1/user-webhooks/{id}/regenerate-secret:
+    post:
+      tags:
+        - User Webhooks
+      summary: Regenerate webhook secret
+      description: |
+        Generate a new signing secret for the webhook endpoint.
+        The old secret will be immediately invalidated.
+        Update your webhook handler with the new secret.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Secret regenerated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Secret regenerated successfully. Update your webhook handler with the new secret.
+                  data:
+                    type: object
+                    properties:
+                      secret:
+                        type: string
+                        example: whsec_new123abc456...
+                        description: New webhook signing secret
+        '404':
+          description: Webhook endpoint not found
+        '401':
+          description: Unauthorized
+
+  /api/v1/user-webhooks/{id}/deliveries:
+    get:
+      tags:
+        - User Webhooks
+      summary: View webhook delivery logs
+      description: |
+        Get delivery logs for a webhook endpoint.
+        Useful for debugging webhook delivery issues.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+          description: Number of delivery logs to retrieve
+      responses:
+        '200':
+          description: Delivery logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Delivery logs retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookDelivery'
+        '404':
+          description: Webhook endpoint not found
+        '401':
+          description: Unauthorized
 
   /api/v1/admin/providers:
     get:

@@ -1,4 +1,5 @@
 const domainRepository = require('../repositories/domainRepository');
+const domainSubmissionRepository = require('../repositories/domainSubmissionRepository');
 const providerService = require('./providerService');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
@@ -42,6 +43,23 @@ const domainService = {
 
     logger.info({ userId, domainId: newDomain.id, domain, name }, 'Domain added');
 
+    // Save submitted data to domain_submissions table
+    await domainSubmissionRepository.create({
+      domainId: newDomain.id,
+      submittedBusinessName: name,
+      submittedDescription: description,
+      submittedWebsite: website,
+      addressLine1,
+      addressLine2,
+      city,
+      stateProvince,
+      postalCode,
+      country,
+      submittedEmail: email,
+      submittedPhone: phone,
+      submittedFullName: fullName
+    });
+
     // Build provider request payload with all submitted fields
     const providerPayload = {
       domain,
@@ -64,14 +82,24 @@ const domainService = {
     (async () => {
       try {
         // First, do the initial web presence review with all submitted fields
-        await providerService.checkDomain(newDomain.id, providerPayload);
+        const checkResult = await providerService.checkDomain(newDomain.id, providerPayload);
         logger.info({ domainId: newDomain.id, domain, name }, 'Initial domain check completed');
+
+        // Update submission with provider data
+        if (checkResult) {
+          await domainSubmissionRepository.updateProviderData(newDomain.id, {
+            name: checkResult.name,
+            industry: checkResult.industry,
+            businessType: checkResult.businessType,
+            foundedYear: checkResult.foundedYear
+          });
+        }
 
         // Only start monitoring if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
         if (checkFrequency && domain) {
-          await providerService.startMonitoring(newDomain.id, domain);
+          await providerService.startMonitoring(newDomain.id, domain, checkFrequency);
           logger.info({ domainId: newDomain.id, domain, checkFrequency }, 'Domain monitoring started with provider');
         } else if (!checkFrequency) {
           logger.info({ domainId: newDomain.id, domain, name }, 'Skipping monitoring - no checkFrequency provided (one-time check only)');
@@ -130,15 +158,42 @@ const domainService = {
           externalTrackingRef: originalItem.externalTrackingRef
         };
 
+        // Save submitted data to domain_submissions table
+        await domainSubmissionRepository.create({
+          domainId: domainRecord.id,
+          submittedBusinessName: originalItem.name,
+          submittedDescription: originalItem.description,
+          submittedWebsite: originalItem.website,
+          addressLine1: originalItem.addressLine1,
+          addressLine2: originalItem.addressLine2,
+          city: originalItem.city,
+          stateProvince: originalItem.stateProvince,
+          postalCode: originalItem.postalCode,
+          country: originalItem.country,
+          submittedEmail: originalItem.email,
+          submittedPhone: originalItem.phone,
+          submittedFullName: originalItem.fullName
+        });
+
         // Do initial web presence review with all fields
-        await providerService.checkDomain(domainRecord.id, providerPayload);
+        const checkResult = await providerService.checkDomain(domainRecord.id, providerPayload);
+
+        // Update submission with provider data
+        if (checkResult) {
+          await domainSubmissionRepository.updateProviderData(domainRecord.id, {
+            name: checkResult.name,
+            industry: checkResult.industry,
+            businessType: checkResult.businessType,
+            foundedYear: checkResult.foundedYear
+          });
+        }
 
         // Start monitoring with provider only if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
         const itemCheckFrequency = originalItem.checkFrequency;
         if (itemCheckFrequency && domainRecord.domain) {
-          await providerService.startMonitoring(domainRecord.id, domainRecord.domain);
+          await providerService.startMonitoring(domainRecord.id, domainRecord.domain, itemCheckFrequency);
           providerResults.checked.push({
             domainId: domainRecord.id,
             domain: domainRecord.domain,
@@ -233,7 +288,10 @@ const domainService = {
       throw new AppError('Domain not found', 404, 'DOMAIN_NOT_FOUND');
     }
 
-    return this.formatDomainResponse(domain);
+    // Fetch submission data
+    const submission = await domainSubmissionRepository.findByDomainId(domainId);
+
+    return this.formatDomainResponse(domain, submission);
   },
 
   async getDomainDetails(user, domainId) {
@@ -258,7 +316,10 @@ const domainService = {
       throw new AppError('Domain not found', 404, 'DOMAIN_NOT_FOUND');
     }
 
-    return this.formatDomainDetailResponse(domain);
+    // Fetch submission data
+    const submission = await domainSubmissionRepository.findByDomainId(domainId);
+
+    return this.formatDomainDetailResponse(domain, submission);
   },
 
   async getDomainsBulk(userId, ids) {
@@ -367,7 +428,7 @@ const domainService = {
     (async () => {
       try {
         await providerService.checkDomain(domainId, domain.domain);
-        await providerService.startMonitoring(domainId, domain.domain);
+        await providerService.startMonitoring(domainId, domain.domain, domain.check_frequency || domain.checkFrequency);
         logger.info({ domainId, domain: domain.domain }, 'Provider monitoring started');
       } catch (err) {
         logger.error({ domainId, error: err.message }, 'Failed to start provider monitoring');
@@ -413,31 +474,61 @@ const domainService = {
     }));
   },
 
-  formatDomainResponse(domain) {
-    return {
+  formatDomainResponse(domain, submission = null) {
+    const response = {
       id: domain.id,
       domain: domain.domain,
-      name: domain.name,
       status: domain.status,
-      recommendation: domain.recommendation,
-      industry: domain.industry,
-      businessType: domain.business_type,
-      foundedYear: domain.founded_year,
-      provider: domain.provider,
       checkFrequency: domain.check_frequency,
       lastCheckedAt: domain.last_checked_at,
       nextCheckAt: domain.next_check_at,
       createdAt: domain.created_at,
       updatedAt: domain.updated_at
     };
+
+    // Add submission data if available
+    if (submission) {
+      response.submitted = {
+        businessName: submission.submitted_business_name,
+        description: submission.submitted_description,
+        website: submission.submitted_website,
+        address: {
+          line1: submission.address_line_1,
+          line2: submission.address_line_2,
+          city: submission.city,
+          stateProvince: submission.state_province,
+          postalCode: submission.postal_code,
+          country: submission.country
+        },
+        contact: {
+          email: submission.submitted_email,
+          phone: submission.submitted_phone,
+          fullName: submission.submitted_full_name
+        }
+      };
+    }
+
+    // Add web presence data (from provider)
+    response.web_presence = {
+      recommendation: domain.recommendation,
+      businessName: submission?.provider_business_name || domain.name,
+      industry: submission?.provider_industry || domain.industry,
+      businessType: submission?.provider_business_type || domain.business_type,
+      foundedYear: submission?.provider_founded_year || domain.founded_year,
+      provider: domain.provider
+    };
+
+    return response;
   },
 
-  formatDomainDetailResponse(domain) {
-    return {
-      ...this.formatDomainResponse(domain),
-      rawData: domain.raw_data ? JSON.parse(domain.raw_data) : null,
-      providerResponseId: domain.provider_response_id
-    };
+  formatDomainDetailResponse(domain, submission = null) {
+    const response = this.formatDomainResponse(domain, submission);
+
+    // Add raw provider data and response ID to web_presence
+    response.web_presence.rawData = domain.raw_data ? JSON.parse(domain.raw_data) : null;
+    response.web_presence.providerResponseId = domain.provider_response_id;
+
+    return response;
   }
 };
 

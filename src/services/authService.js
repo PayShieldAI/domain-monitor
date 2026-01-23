@@ -70,9 +70,13 @@ const authService = {
       role: user.role
     };
 
-    return jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.accessExpiry
-    });
+    // If accessExpiry is 'never', create token without expiration
+    const options = {};
+    if (config.jwt.accessExpiry !== 'never') {
+      options.expiresIn = config.jwt.accessExpiry;
+    }
+
+    return jwt.sign(payload, config.jwt.secret, options);
   },
 
   async generateRefreshToken(userId) {
@@ -262,6 +266,12 @@ const authService = {
 
   getAccessTokenExpirySeconds() {
     const expiry = config.jwt.accessExpiry;
+
+    // If token never expires, return null
+    if (expiry === 'never') {
+      return null;
+    }
+
     const match = expiry.match(/^(\d+)([smhd])$/);
     if (!match) return 900; // default 15 minutes
 

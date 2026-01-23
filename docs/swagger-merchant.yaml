@@ -8,6 +8,14 @@ info:
     This API allows merchants to monitor their domain reputation and verification status.
     All endpoints use JWT Bearer token authentication - no API keys required.
 
+    ## Check Frequency Options
+    When creating or monitoring domains, you can specify how often the domain should be checked:
+    - **7**: Weekly monitoring (every 7 days)
+    - **30**: Monthly monitoring (every 30 days)
+    - **90**: Quarterly monitoring (every 90 days)
+
+    If `checkFrequency` is not provided, only a one-time check is performed without ongoing monitoring.
+
     ## Authentication
     All endpoints (except login and registration) require JWT authentication.
 
@@ -43,7 +51,7 @@ info:
       -d '{
         "domain": "example.com",
         "name": "Example Domain",
-        "checkFrequency": "daily"
+        "checkFrequency": "7"
       }'
     ```
 
@@ -326,9 +334,15 @@ paths:
                   description: Friendly name for the domain
                 checkFrequency:
                   type: string
-                  enum: [daily, weekly, monthly]
-                  default: daily
-                  description: How often to check the domain
+                  enum: ['7', '30', '90']
+                  default: '7'
+                  description: |
+                    Monitoring frequency in days:
+                    - '7': Weekly monitoring (every 7 days)
+                    - '30': Monthly monitoring (every 30 days)
+                    - '90': Quarterly monitoring (every 90 days)
+
+                    This value is sent to the monitoring provider to configure the monitoring package frequency.
       responses:
         '201':
           description: Domain created successfully
@@ -574,8 +588,15 @@ paths:
                         type: string
                       checkFrequency:
                         type: string
-                        enum: [daily, weekly, monthly]
-                        default: daily
+                        enum: ['7', '30', '90']
+                        default: '7'
+                        description: |
+                          Monitoring frequency in days:
+                          - '7': Weekly monitoring (every 7 days)
+                          - '30': Monthly monitoring (every 30 days)
+                          - '90': Quarterly monitoring (every 90 days)
+
+                          This value is sent to the monitoring provider to configure the monitoring package frequency.
       responses:
         '200':
           description: Bulk operation completed
@@ -1051,7 +1072,14 @@ components:
           example: truebiz
         checkFrequency:
           type: string
-          enum: [daily, weekly, monthly]
+          enum: ['7', '30', '90']
+          description: |
+            Monitoring frequency in days:
+            - '7': Weekly monitoring (every 7 days)
+            - '30': Monthly monitoring (every 30 days)
+            - '90': Quarterly monitoring (every 90 days)
+
+            This value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
         lastCheckedAt:
           type: string
           format: date-time

@@ -160,6 +160,16 @@ class TrueBizProvider extends BaseProvider {
    */
   async logApiCall(logData) {
     try {
+      // Validate and log if domainId is missing
+      if (!logData.domainId) {
+        logger.warn({
+          provider: this.name,
+          endpoint: logData.endpoint,
+          method: logData.method,
+          hasPayload: !!logData.requestPayload
+        }, 'Provider API call logged without domainId - this may indicate a bug');
+      }
+
       await providerApiLogRepository.create({
         ...logData,
         provider: this.name
@@ -168,7 +178,10 @@ class TrueBizProvider extends BaseProvider {
       // Don't fail the main operation if logging fails
       logger.error({
         error: error.message,
-        provider: this.name
+        stack: error.stack,
+        provider: this.name,
+        domainId: logData.domainId,
+        endpoint: logData.endpoint
       }, 'Failed to log API call to database');
     }
   }
@@ -377,12 +390,27 @@ class TrueBizProvider extends BaseProvider {
    * @param {string} domain - Domain to monitor
    * @param {string} domainId - Internal domain ID for logging
    * @param {string} externalRefId - Optional external reference ID
+   * @param {string} checkFrequency - Check frequency in days ('7', '30', '90')
    * @returns {Promise<Object>} Monitoring response
    */
-  async startMonitoring(domain, domainId = null, externalRefId = null) {
+  async startMonitoring(domain, domainId = null, externalRefId = null, checkFrequency = '7') {
     const endpoint = '/monitoring/start';
+
+    // Build packages array with frequency
+    // TrueBiz API expects frequency in days as integer
+    const frequencyDays = parseInt(checkFrequency, 10) || 7;
+    const packages = [
+      {
+        type: 'io.truebiz.monitoring.packages.basic',
+        frequency: {
+          days: frequencyDays
+        }
+      }
+    ];
+
     const requestPayload = {
       domain,
+      packages,
       ...(externalRefId && { external_ref_id: externalRefId })
     };
     const requestTimestamp = new Date().toISOString();

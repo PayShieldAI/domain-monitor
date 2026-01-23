@@ -26,7 +26,7 @@ describe('DomainService', () => {
     business_type: 'Corporation',
     founded_year: 2015,
     provider: 'truebiz',
-    check_frequency: 'daily',
+    check_frequency: '7',
     last_checked_at: new Date(),
     next_check_at: new Date(),
     created_at: new Date(),
@@ -38,13 +38,13 @@ describe('DomainService', () => {
       domainRepository.findByDomainAndUserId.mockResolvedValue(null);
       domainRepository.create.mockResolvedValue(mockDomain);
 
-      const result = await domainService.addDomain('user-123', 'example.com', 'daily');
+      const result = await domainService.addDomain('user-123', 'example.com', '7');
 
       expect(domainRepository.findByDomainAndUserId).toHaveBeenCalledWith('example.com', 'user-123');
       expect(domainRepository.create).toHaveBeenCalledWith({
         userId: 'user-123',
         domain: 'example.com',
-        checkFrequency: 'daily'
+        checkFrequency: '7'
       });
       expect(result.domain).toBe('example.com');
       expect(result.status).toBe('active');
@@ -54,7 +54,7 @@ describe('DomainService', () => {
       domainRepository.findByDomainAndUserId.mockResolvedValue(mockDomain);
 
       await expect(
-        domainService.addDomain('user-123', 'example.com', 'daily')
+        domainService.addDomain('user-123', 'example.com', '7')
       ).rejects.toMatchObject({
         statusCode: 409,
         code: 'DOMAIN_EXISTS'
@@ -65,8 +65,8 @@ describe('DomainService', () => {
   describe('addDomainsBulk', () => {
     it('should add multiple domains and return results', async () => {
       const domains = [
-        { domain: 'example1.com', checkFrequency: 'daily' },
-        { domain: 'example2.com', checkFrequency: 'weekly' }
+        { domain: 'example1.com', checkFrequency: '7' },
+        { domain: 'example2.com', checkFrequency: '30' }
       ];
 
       domainRepository.bulkCreate.mockResolvedValue({

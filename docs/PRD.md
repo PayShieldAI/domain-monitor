@@ -107,7 +107,7 @@ A microservice that:
 - **Validation:**
   - Domain must be valid format (RFC 1035)
   - Domain max length: 255 characters
-  - Check frequency: daily, weekly, or monthly (default: daily)
+  - Check frequency: 7, 30, or 90 days (default: 7)
   - merchantId: Valid user UUID (superadmin/reseller only)
 - **Behavior:**
   - Create domain record with status "active"
@@ -528,7 +528,7 @@ Domain {
   rawData: JSON | null
   provider: string (provider name used for last check)
   providerResponseId: string | null (provider's reference ID)
-  checkFrequency: enum [daily, weekly, monthly]
+  checkFrequency: enum ['7', '30', '90'] (days)
   lastCheckedAt: timestamp | null
   nextCheckAt: timestamp | null
   createdAt: timestamp

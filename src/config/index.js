@@ -14,7 +14,7 @@ const config = {
 
   jwt: {
     secret: process.env.JWT_SECRET,
-    accessExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
+    accessExpiry: process.env.JWT_ACCESS_EXPIRY || 'never', // Set to 'never' for non-expiring tokens
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d'
   },
 

@@ -135,21 +135,20 @@ class SchedulerService {
 
   /**
    * Calculate next check time based on frequency
-   * @param {string} frequency - daily | weekly | monthly
+   * @param {string} frequency - 7 | 30 | 90 (days)
    * @returns {Date}
    */
   calculateNextCheck(frequency) {
     const now = new Date();
-    switch (frequency) {
-      case 'daily':
-        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
-      case 'weekly':
-        return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      case 'monthly':
-        return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      default:
-        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const days = parseInt(frequency, 10);
+
+    // Validate frequency
+    if (!days || ![7, 30, 90].includes(days)) {
+      logger.warn({ frequency }, 'Invalid check frequency, defaulting to 7 days');
+      return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
+
+    return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
   }
 
   /**

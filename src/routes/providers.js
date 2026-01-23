@@ -1,6 +1,6 @@
 const express = require('express');
 const providerController = require('../controllers/providerController');
-const { authenticate, requireAdmin } = require('../middlewares/auth');
+const { authenticateFlexible, requireSuperadminOrApiKey } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const {
   createProviderSchema,
@@ -12,9 +12,9 @@ const {
 
 const router = express.Router();
 
-// All provider routes require authentication and admin role
-router.use(authenticate);
-router.use(requireAdmin);
+// All provider routes require authentication (JWT or API key) and superadmin/API key access
+router.use(authenticateFlexible);
+router.use(requireSuperadminOrApiKey);
 
 /**
  * @route   GET /api/v1/admin/providers

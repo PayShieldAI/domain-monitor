@@ -143,6 +143,14 @@ class ProviderService {
   async checkDomain(domainId, domainOrPayload) {
     await this.ensureInitialized();
 
+    // Validate domainId is provided
+    if (!domainId) {
+      logger.error({
+        domainOrPayload: typeof domainOrPayload === 'string' ? domainOrPayload : domainOrPayload?.domain,
+        hasPayload: !!domainOrPayload
+      }, 'checkDomain called without domainId - this will result in missing domain_id in logs');
+    }
+
     const provider = this.getPrimaryProvider();
 
     try {
@@ -219,10 +227,19 @@ class ProviderService {
    * Start monitoring a domain with the primary provider
    * @param {string} domainId - Domain ID
    * @param {string} domainName - Domain name
+   * @param {string} checkFrequency - Check frequency in days ('7', '30', '90')
    * @returns {Promise<Object>} Monitoring result
    */
-  async startMonitoring(domainId, domainName) {
+  async startMonitoring(domainId, domainName, checkFrequency = '7') {
     await this.ensureInitialized();
+
+    // Validate domainId is provided
+    if (!domainId) {
+      logger.error({
+        domainName,
+        checkFrequency
+      }, 'startMonitoring called without domainId - this will result in missing domain_id in logs');
+    }
 
     const provider = this.getPrimaryProvider();
 
@@ -236,7 +253,7 @@ class ProviderService {
     }
 
     try {
-      const result = await provider.startMonitoring(domainName, domainId, domainId);
+      const result = await provider.startMonitoring(domainName, domainId, domainId, checkFrequency);
 
       logger.info({
         domainId,
@@ -267,6 +284,13 @@ class ProviderService {
    */
   async stopMonitoring(domainId, domainName) {
     await this.ensureInitialized();
+
+    // Validate domainId is provided
+    if (!domainId) {
+      logger.error({
+        domainName
+      }, 'stopMonitoring called without domainId - this will result in missing domain_id in logs');
+    }
 
     const provider = this.getPrimaryProvider();
 

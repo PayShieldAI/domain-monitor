@@ -1,14 +1,14 @@
 const express = require('express');
 const apiKeyController = require('../controllers/apiKeyController');
-const { authenticate, requireSuperadmin } = require('../middlewares/auth');
+const { authenticateFlexible, requireSuperadminOrApiKey } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const { createApiKeySchema, updateApiKeySchema, apiKeyIdSchema } = require('../validators/apiKeySchemas');
 
 const router = express.Router();
 
-// All routes require superadmin authentication
-router.use(authenticate);
-router.use(requireSuperadmin);
+// All routes require authentication (JWT or API key) and superadmin/API key access
+router.use(authenticateFlexible);
+router.use(requireSuperadminOrApiKey);
 
 // Create new API key
 router.post('/', validate(createApiKeySchema), apiKeyController.createApiKey);

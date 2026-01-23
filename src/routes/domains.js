@@ -1,6 +1,6 @@
 const express = require('express');
 const domainController = require('../controllers/domainController');
-const { authenticate } = require('../middlewares/auth');
+const { authenticateFlexible } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const {
   createDomainSchema,
@@ -13,8 +13,8 @@ const {
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
+// All routes require authentication (JWT or API key)
+router.use(authenticateFlexible);
 
 // Single domain operations
 router.post('/', validate(createDomainSchema), domainController.create);

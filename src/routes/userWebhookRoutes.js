@@ -1,6 +1,6 @@
 const express = require('express');
 const userWebhookController = require('../controllers/userWebhookController');
-const { authenticate } = require('../middlewares/auth');
+const { authenticateFlexible } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const {
   createWebhookEndpointSchema,
@@ -10,8 +10,8 @@ const {
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
+// All routes require authentication (JWT or API key)
+router.use(authenticateFlexible);
 
 // Create webhook endpoint
 router.post('/', validate(createWebhookEndpointSchema), userWebhookController.createEndpoint);

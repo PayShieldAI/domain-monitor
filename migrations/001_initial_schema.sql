@@ -69,7 +69,7 @@ CREATE TABLE domains (
   raw_data JSON,
   provider VARCHAR(50),
   provider_response_id VARCHAR(255),
-  check_frequency ENUM('daily', 'weekly', 'monthly') DEFAULT 'daily',
+  check_frequency ENUM('7', '30', '90') DEFAULT '7',
   last_checked_at TIMESTAMP NULL,
   next_check_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

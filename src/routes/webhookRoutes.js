@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const webhookController = require('../controllers/webhookController');
-const { authenticate, requireSuperadmin } = require('../middlewares/auth');
+const { authenticateFlexible, requireSuperadminOrApiKey } = require('../middlewares/auth');
 
 /**
  * Webhook Routes
@@ -9,7 +9,7 @@ const { authenticate, requireSuperadmin } = require('../middlewares/auth');
  * Public routes (no auth):
  * - POST /api/v1/webhooks/:provider - Receive webhook from provider
  *
- * Admin routes (superadmin only):
+ * Admin routes (superadmin or API key):
  * - GET /api/v1/webhooks/:provider/events - List webhook events
  * - POST /api/v1/webhooks/events/:id/retry - Retry failed webhook
  */
@@ -17,8 +17,8 @@ const { authenticate, requireSuperadmin } = require('../middlewares/auth');
 // Public webhook endpoint (no authentication - providers send to this)
 router.post('/:provider', webhookController.handleWebhook);
 
-// Admin endpoints (superadmin only)
-router.get('/:provider/events', authenticate, requireSuperadmin, webhookController.listWebhookEvents);
-router.post('/events/:id/retry', authenticate, requireSuperadmin, webhookController.retryWebhook);
+// Admin endpoints (superadmin or API key)
+router.get('/:provider/events', authenticateFlexible, requireSuperadminOrApiKey, webhookController.listWebhookEvents);
+router.post('/events/:id/retry', authenticateFlexible, requireSuperadminOrApiKey, webhookController.retryWebhook);
 
 module.exports = router;

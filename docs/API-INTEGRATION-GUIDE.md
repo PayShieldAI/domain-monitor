@@ -188,7 +188,7 @@ curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
 | `phone` | string | No | Contact phone |
 | `fullName` | string | No | Contact person name |
 | `externalTrackingRef` | string | No | Your external reference ID |
-| `checkFrequency` | string | No | `daily`, `weekly`, or `monthly` |
+| `checkFrequency` | string | No | `7`, `30`, or `90` (days) |
 
 {% hint style="info" %}
 **One-Time Check vs Monitoring**
