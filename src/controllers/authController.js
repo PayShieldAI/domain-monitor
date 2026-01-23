@@ -107,6 +107,19 @@ const authController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  async getMyToken(req, res, next) {
+    try {
+      const result = await authService.getUserToken(req.user.id);
+
+      res.json({
+        message: 'Token retrieved successfully',
+        data: result
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 };
 

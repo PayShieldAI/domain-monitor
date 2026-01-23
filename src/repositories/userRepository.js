@@ -127,6 +127,39 @@ const userRepository = {
   async markPasswordResetTokenUsed(id) {
     const sql = 'UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?';
     await query(sql, [id]);
+  },
+
+  // User Token Methods (for persistent JWT storage)
+  async createOrUpdateUserToken({ userId, token }) {
+    const existing = await this.findUserTokenByUserId(userId);
+
+    if (existing) {
+      const sql = `
+        UPDATE user_tokens
+        SET token = ?, updated_at = NOW()
+        WHERE user_id = ?
+      `;
+      await query(sql, [token, userId]);
+      return existing.id;
+    }
+
+    const id = uuid();
+    const sql = `
+      INSERT INTO user_tokens (id, user_id, token, created_at, updated_at)
+      VALUES (?, ?, ?, NOW(), NOW())
+    `;
+    await query(sql, [id, userId, token]);
+    return id;
+  },
+
+  async findUserTokenByUserId(userId) {
+    const sql = 'SELECT * FROM user_tokens WHERE user_id = ?';
+    return queryOne(sql, [userId]);
+  },
+
+  async deleteUserToken(userId) {
+    const sql = 'DELETE FROM user_tokens WHERE user_id = ?';
+    await query(sql, [userId]);
   }
 };
 

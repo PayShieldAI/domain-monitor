@@ -13,14 +13,6 @@ info:
     - Real-time updates via SSE (coming soon)
     - Webhook notifications
 
-    ## Check Frequency Options
-    When creating or monitoring domains, you can specify how often the domain should be checked:
-    - **7 days**: Check the domain every 7 days (weekly monitoring)
-    - **30 days**: Check the domain every 30 days (monthly monitoring)
-    - **90 days**: Check the domain every 90 days (quarterly monitoring)
-
-    The `checkFrequency` parameter controls this behavior. If omitted, the domain will only receive a one-time check without ongoing monitoring.
-
     ## Authentication
 
     ### JWT Bearer Token (User Authentication)
@@ -37,10 +29,6 @@ info:
     ```
     API keys provide system-level access and are managed by superadmins.
     See the API Keys section for management endpoints.
-
-    ### Flexible Authentication
-    Some endpoints support both authentication methods (JWT or API key).
-    These endpoints will attempt Bearer token first, then fall back to API key.
 
     ## Quick Start Examples
 

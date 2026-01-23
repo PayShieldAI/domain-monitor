@@ -1,6 +1,6 @@
 const express = require('express');
 const authController = require('../controllers/authController');
-const { authenticate, requireSuperadmin, authenticateFlexible, requireSuperadminOrApiKey } = require('../middlewares/auth');
+const { authenticate, authenticateFlexible, requireSuperadminOrApiKey } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 const {
   registerSchema,
@@ -24,6 +24,7 @@ router.post('/reset-password', validate(resetPasswordSchema), authController.res
 // Protected routes
 router.post('/logout', authenticate, authController.logout);
 router.post('/change-password', authenticate, validate(changePasswordSchema), authController.changePassword);
+router.get('/me/token', authenticate, authController.getMyToken);
 
 // Superadmin-only routes (supports both JWT and API key authentication)
 router.post('/generate-user-token', authenticateFlexible, requireSuperadminOrApiKey, validate(generateUserTokenSchema), authController.generateUserToken);

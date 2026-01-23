@@ -8,14 +8,6 @@ info:
     This API allows merchants to monitor their domain reputation and verification status.
     All endpoints use JWT Bearer token authentication - no API keys required.
 
-    ## Check Frequency Options
-    When creating or monitoring domains, you can specify how often the domain should be checked:
-    - **7**: Weekly monitoring (every 7 days)
-    - **30**: Monthly monitoring (every 30 days)
-    - **90**: Quarterly monitoring (every 90 days)
-
-    If `checkFrequency` is not provided, only a one-time check is performed without ongoing monitoring.
-
     ## Authentication
     All endpoints (except login and registration) require JWT authentication.
 
@@ -82,7 +74,11 @@ paths:
       tags:
         - Authentication
       summary: Merchant login
-      description: Authenticate and receive JWT access and refresh tokens
+      description: |
+        Authenticate and receive JWT access and refresh tokens.
+
+        **Note:** If you already have a valid stored access token, the same token will be returned.
+        New tokens are only generated when no token exists or when the existing token is invalid.
       operationId: login
       requestBody:
         required: true
@@ -118,27 +114,15 @@ paths:
                     properties:
                       accessToken:
                         type: string
-                        description: JWT access token (valid for 15 minutes)
+                        description: JWT access token (returns existing token if valid, otherwise generates new one)
                       refreshToken:
                         type: string
                         description: JWT refresh token (valid for 7 days)
                       expiresIn:
                         type: integer
-                        example: 900
-                        description: Token expiry in seconds
-                      user:
-                        type: object
-                        properties:
-                          id:
-                            type: string
-                            format: uuid
-                          email:
-                            type: string
-                          name:
-                            type: string
-                          role:
-                            type: string
-                            enum: [merchant, reseller]
+                        nullable: true
+                        example: null
+                        description: Token expiry in seconds (null means never expires)
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '400':
@@ -250,6 +234,54 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/auth/me/token:
+    get:
+      tags:
+        - Authentication
+      summary: Get user access token
+      description: |
+        Retrieve the current user's stored access token. If no token exists or the existing token is invalid/expired,
+        a new token will be generated and stored automatically.
+
+        **Note:** Access tokens do not expire by default (JWT_ACCESS_EXPIRY='never'). The same token will be returned
+        on subsequent logins and when calling this endpoint.
+      operationId: getMyToken
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Token retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        description: JWT access token
+                      expiresIn:
+                        type: integer
+                        nullable: true
+                        example: null
+                        description: Token expiry in seconds (null means never expires)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Account is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Account is not active
+                code: ACCOUNT_INACTIVE
 
   # ==========================================
   # DOMAINS

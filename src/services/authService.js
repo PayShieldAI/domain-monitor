@@ -47,14 +47,33 @@ const authService = {
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    // Generate tokens
-    const accessToken = this.generateAccessToken(user);
+    // Check if user already has a stored token
+    const existingToken = await userRepository.findUserTokenByUserId(user.id);
+    let accessToken;
+
+    if (existingToken) {
+      // Verify the existing token is still valid
+      try {
+        this.verifyAccessToken(existingToken.token);
+        accessToken = existingToken.token;
+        logger.info({ userId: user.id }, 'User logged in with existing token');
+      } catch (err) {
+        // Token is invalid or expired, generate a new one
+        accessToken = this.generateAccessToken(user);
+        await userRepository.createOrUpdateUserToken({ userId: user.id, token: accessToken });
+        logger.info({ userId: user.id }, 'User logged in with new token (old token invalid)');
+      }
+    } else {
+      // Generate new token and store it
+      accessToken = this.generateAccessToken(user);
+      await userRepository.createOrUpdateUserToken({ userId: user.id, token: accessToken });
+      logger.info({ userId: user.id }, 'User logged in with new token');
+    }
+
     const refreshToken = await this.generateRefreshToken(user.id);
 
     // Update last login
     await userRepository.updateLastLogin(user.id);
-
-    logger.info({ userId: user.id }, 'User logged in');
 
     return {
       accessToken,
@@ -178,6 +197,7 @@ const authService = {
 
   async logout(userId) {
     await userRepository.revokeAllRefreshTokens(userId);
+    await userRepository.deleteUserToken(userId);
     logger.info({ userId }, 'User logged out');
   },
 
@@ -195,8 +215,9 @@ const authService = {
     const newPasswordHash = await cryptoUtils.hashPassword(newPassword);
     await userRepository.updatePassword(userId, newPasswordHash);
 
-    // Revoke all refresh tokens for security
+    // Revoke all refresh tokens and delete stored access token for security
     await userRepository.revokeAllRefreshTokens(userId);
+    await userRepository.deleteUserToken(userId);
 
     logger.info({ userId }, 'Password changed');
   },
@@ -258,8 +279,9 @@ const authService = {
     // Mark token as used
     await userRepository.markPasswordResetTokenUsed(resetToken.id);
 
-    // Revoke all refresh tokens
+    // Revoke all refresh tokens and delete stored access token
     await userRepository.revokeAllRefreshTokens(resetToken.user_id);
+    await userRepository.deleteUserToken(resetToken.user_id);
 
     logger.info({ userId: resetToken.user_id }, 'Password reset completed');
   },
@@ -323,6 +345,53 @@ const authService = {
         role: user.role,
         name: user.name
       }
+    };
+  },
+
+  async getUserToken(userId) {
+    // Find user to validate they exist
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    // Check if user is active
+    if (user.status !== 'active') {
+      throw new AppError('Account is not active', 403, 'ACCOUNT_INACTIVE');
+    }
+
+    // Check if user has a stored token
+    const existingToken = await userRepository.findUserTokenByUserId(userId);
+
+    if (existingToken) {
+      // Verify the existing token is still valid
+      try {
+        this.verifyAccessToken(existingToken.token);
+        logger.info({ userId }, 'User token retrieved');
+        return {
+          accessToken: existingToken.token,
+          expiresIn: this.getAccessTokenExpirySeconds()
+        };
+      } catch (err) {
+        // Token is invalid or expired, generate a new one
+        const accessToken = this.generateAccessToken(user);
+        await userRepository.createOrUpdateUserToken({ userId, token: accessToken });
+        logger.info({ userId }, 'User token regenerated (old token invalid)');
+        return {
+          accessToken,
+          expiresIn: this.getAccessTokenExpirySeconds()
+        };
+      }
+    }
+
+    // No existing token, generate a new one
+    const accessToken = this.generateAccessToken(user);
+    await userRepository.createOrUpdateUserToken({ userId, token: accessToken });
+    logger.info({ userId }, 'User token generated');
+
+    return {
+      accessToken,
+      expiresIn: this.getAccessTokenExpirySeconds()
     };
   }
 };
