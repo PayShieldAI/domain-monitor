@@ -123,9 +123,9 @@ const userWebhookRepository = {
     const id = uuid();
     const sql = `
       INSERT INTO webhook_delivery_logs (
-        id, webhook_id, event_type, domain_id, attempt_number,
-        status, request_body, payload, created_at
-      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NOW())
+        id, endpoint_id, event_type, domain_id, attempt_number,
+        status, request_body, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, NOW())
     `;
     await query(sql, [
       id,
@@ -133,8 +133,7 @@ const userWebhookRepository = {
       eventType,
       domainId || null,
       attemptNumber,
-      JSON.stringify(requestBody),
-      JSON.stringify(requestBody) // payload is the same as request_body
+      JSON.stringify(requestBody)
     ]);
     return id;
   },
@@ -187,7 +186,7 @@ const userWebhookRepository = {
   async findDeliveryLogsByEndpoint(endpointId, limit = 100) {
     const sql = `
       SELECT * FROM webhook_delivery_logs
-      WHERE webhook_id = ?
+      WHERE endpoint_id = ?
       ORDER BY created_at DESC
       LIMIT ?
     `;
