@@ -89,14 +89,15 @@ const userWebhookService = {
   /**
    * Get webhook endpoint by ID
    */
-  async getWebhookEndpoint(endpointId, userId) {
+  async getWebhookEndpoint(endpointId, userId, isSystemAccess = false) {
     const endpoint = await userWebhookRepository.findById(endpointId);
 
     if (!endpoint) {
       throw new AppError('Webhook endpoint not found', 404, 'ENDPOINT_NOT_FOUND');
     }
 
-    if (endpoint.user_id !== userId) {
+    // Skip ownership check for system-level access (API keys, superadmins)
+    if (!isSystemAccess && endpoint.user_id !== userId) {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
@@ -118,14 +119,15 @@ const userWebhookService = {
   /**
    * Update webhook endpoint
    */
-  async updateWebhookEndpoint(endpointId, userId, { url, events, description, enabled }) {
+  async updateWebhookEndpoint(endpointId, userId, { url, events, description, enabled }, isSystemAccess = false) {
     const endpoint = await userWebhookRepository.findById(endpointId);
 
     if (!endpoint) {
       throw new AppError('Webhook endpoint not found', 404, 'ENDPOINT_NOT_FOUND');
     }
 
-    if (endpoint.user_id !== userId) {
+    // Skip ownership check for system-level access (API keys, superadmins)
+    if (!isSystemAccess && endpoint.user_id !== userId) {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
@@ -170,28 +172,29 @@ const userWebhookService = {
       enabled
     });
 
-    logger.info({ userId, endpointId }, 'Webhook endpoint updated');
+    logger.info({ userId, endpointId, isSystemAccess }, 'Webhook endpoint updated');
 
-    return this.getWebhookEndpoint(endpointId, userId);
+    return this.getWebhookEndpoint(endpointId, endpoint.user_id, isSystemAccess);
   },
 
   /**
    * Delete webhook endpoint
    */
-  async deleteWebhookEndpoint(endpointId, userId) {
+  async deleteWebhookEndpoint(endpointId, userId, isSystemAccess = false) {
     const endpoint = await userWebhookRepository.findById(endpointId);
 
     if (!endpoint) {
       throw new AppError('Webhook endpoint not found', 404, 'ENDPOINT_NOT_FOUND');
     }
 
-    if (endpoint.user_id !== userId) {
+    // Skip ownership check for system-level access (API keys, superadmins)
+    if (!isSystemAccess && endpoint.user_id !== userId) {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
     await userWebhookRepository.delete(endpointId);
 
-    logger.info({ userId, endpointId }, 'Webhook endpoint deleted');
+    logger.info({ userId, endpointId, isSystemAccess }, 'Webhook endpoint deleted');
 
     return { message: 'Webhook endpoint deleted successfully' };
   },
@@ -199,21 +202,22 @@ const userWebhookService = {
   /**
    * Regenerate webhook secret
    */
-  async regenerateSecret(endpointId, userId) {
+  async regenerateSecret(endpointId, userId, isSystemAccess = false) {
     const endpoint = await userWebhookRepository.findById(endpointId);
 
     if (!endpoint) {
       throw new AppError('Webhook endpoint not found', 404, 'ENDPOINT_NOT_FOUND');
     }
 
-    if (endpoint.user_id !== userId) {
+    // Skip ownership check for system-level access (API keys, superadmins)
+    if (!isSystemAccess && endpoint.user_id !== userId) {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
     const newSecret = cryptoUtils.generateWebhookSecret();
     await userWebhookRepository.regenerateSecret(endpointId, newSecret);
 
-    logger.info({ userId, endpointId }, 'Webhook secret regenerated');
+    logger.info({ userId, endpointId, isSystemAccess }, 'Webhook secret regenerated');
 
     return {
       secret: newSecret,
@@ -224,20 +228,21 @@ const userWebhookService = {
   /**
    * Test webhook endpoint
    */
-  async testWebhookEndpoint(endpointId, userId) {
+  async testWebhookEndpoint(endpointId, userId, isSystemAccess = false) {
     const endpoint = await userWebhookRepository.findById(endpointId);
 
     if (!endpoint) {
       throw new AppError('Webhook endpoint not found', 404, 'ENDPOINT_NOT_FOUND');
     }
 
-    if (endpoint.user_id !== userId) {
+    // Skip ownership check for system-level access (API keys, superadmins)
+    if (!isSystemAccess && endpoint.user_id !== userId) {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 
     const result = await webhookDeliveryService.testEndpoint(endpoint);
 
-    logger.info({ userId, endpointId, success: result.success }, 'Webhook endpoint tested');
+    logger.info({ userId, endpointId, success: result.success, isSystemAccess }, 'Webhook endpoint tested');
 
     return {
       success: result.success,
@@ -250,14 +255,15 @@ const userWebhookService = {
   /**
    * Get delivery logs for endpoint
    */
-  async getDeliveryLogs(endpointId, userId, limit = 100) {
+  async getDeliveryLogs(endpointId, userId, limit = 100, isSystemAccess = false) {
     const endpoint = await userWebhookRepository.findById(endpointId);
 
     if (!endpoint) {
       throw new AppError('Webhook endpoint not found', 404, 'ENDPOINT_NOT_FOUND');
     }
 
-    if (endpoint.user_id !== userId) {
+    // Skip ownership check for system-level access (API keys, superadmins)
+    if (!isSystemAccess && endpoint.user_id !== userId) {
       throw new AppError('Access denied', 403, 'FORBIDDEN');
     }
 

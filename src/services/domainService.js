@@ -1,5 +1,6 @@
 const domainRepository = require('../repositories/domainRepository');
 const domainSubmissionRepository = require('../repositories/domainSubmissionRepository');
+const domainMonitoringRepository = require('../repositories/domainMonitoringRepository');
 const providerService = require('./providerService');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
@@ -46,6 +47,7 @@ const domainService = {
     // Save submitted data to domain_submissions table
     await domainSubmissionRepository.create({
       domainId: newDomain.id,
+      submittedDomainName:domain,
       submittedBusinessName: name,
       submittedDescription: description,
       submittedWebsite: website,
@@ -89,8 +91,25 @@ const domainService = {
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
         if (checkFrequency && domain) {
-          await providerService.startMonitoring(newDomain.id, domain, checkFrequency);
-          logger.info({ domainId: newDomain.id, domain, checkFrequency }, 'Domain monitoring started with provider');
+          try {
+            const monitoringResult = await providerService.startMonitoring(newDomain.id, domain, checkFrequency);
+
+            // Log monitoring to domain_monitoring table only if provider monitoring succeeded
+            // providerService.startMonitoring returns null on failure
+            if (monitoringResult && monitoringResult.success) {
+              await domainMonitoringRepository.create({
+                domainId: newDomain.id,
+                checkFrequency,
+                status: 1 // active - monitoring successfully started
+              });
+
+              logger.info({ domainId: newDomain.id, domain, checkFrequency }, 'Domain monitoring started with provider and logged');
+            } else {
+              logger.warn({ domainId: newDomain.id, domain, checkFrequency }, 'Provider monitoring failed or not supported - no monitoring record created');
+            }
+          } catch (monitoringErr) {
+            logger.error({ domainId: newDomain.id, error: monitoringErr.message }, 'Failed to start provider monitoring');
+          }
         } else if (!checkFrequency) {
           logger.info({ domainId: newDomain.id, domain, name }, 'Skipping monitoring - no checkFrequency provided (one-time check only)');
         } else {
@@ -173,12 +192,48 @@ const domainService = {
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
         const itemCheckFrequency = originalItem.checkFrequency;
         if (itemCheckFrequency && domainRecord.domain) {
-          await providerService.startMonitoring(domainRecord.id, domainRecord.domain, itemCheckFrequency);
-          providerResults.checked.push({
-            domainId: domainRecord.id,
-            domain: domainRecord.domain,
-            status: 'checked_and_monitoring'
-          });
+          try {
+            const monitoringResult = await providerService.startMonitoring(domainRecord.id, domainRecord.domain, itemCheckFrequency);
+
+            // Log monitoring to domain_monitoring table only if provider monitoring succeeded
+            // providerService.startMonitoring returns null on failure
+            if (monitoringResult && monitoringResult.success) {
+              await domainMonitoringRepository.create({
+                domainId: domainRecord.id,
+                checkFrequency: itemCheckFrequency,
+                status: 1 // active
+              });
+
+              providerResults.checked.push({
+                domainId: domainRecord.id,
+                domain: domainRecord.domain,
+                status: 'checked_and_monitoring'
+              });
+            } else {
+              logger.warn({
+                domainId: domainRecord.id,
+                domain: domainRecord.domain
+              }, 'Provider monitoring failed or not supported - no monitoring record created');
+
+              providerResults.checkFailed.push({
+                domainId: domainRecord.id,
+                domain: domainRecord.domain,
+                error: 'Monitoring failed or not supported'
+              });
+            }
+          } catch (monitoringErr) {
+            logger.error({
+              domainId: domainRecord.id,
+              domain: domainRecord.domain,
+              error: monitoringErr.message
+            }, 'Failed to start provider monitoring for bulk domain');
+
+            providerResults.checkFailed.push({
+              domainId: domainRecord.id,
+              domain: domainRecord.domain,
+              error: monitoringErr.message
+            });
+          }
         } else {
           let reason = 'one-time check only';
           if (!itemCheckFrequency) {
@@ -351,7 +406,11 @@ const domainService = {
     (async () => {
       try {
         await providerService.stopMonitoring(domainId, domain.domain);
-        logger.info({ domainId, domain: domain.domain }, 'Provider monitoring stopped');
+
+        // Update domain_monitoring status to inactive
+        await domainMonitoringRepository.updateStatus(domainId, 0);
+
+        logger.info({ domainId, domain: domain.domain }, 'Provider monitoring stopped and status updated');
       } catch (err) {
         logger.error({ domainId, error: err.message }, 'Failed to stop provider monitoring');
       }
@@ -380,7 +439,11 @@ const domainService = {
         if (domainName) {
           try {
             await providerService.stopMonitoring(domainId, domainName);
-            logger.info({ domainId, domain: domainName }, 'Provider monitoring stopped');
+
+            // Update domain_monitoring status to inactive
+            await domainMonitoringRepository.updateStatus(domainId, 0);
+
+            logger.info({ domainId, domain: domainName }, 'Provider monitoring stopped and status updated');
           } catch (err) {
             logger.error({ domainId, error: err.message }, 'Failed to stop provider monitoring');
           }
@@ -408,8 +471,22 @@ const domainService = {
     (async () => {
       try {
         await providerService.checkDomain(domainId, domain.domain);
-        await providerService.startMonitoring(domainId, domain.domain, domain.check_frequency || domain.checkFrequency);
-        logger.info({ domainId, domain: domain.domain }, 'Provider monitoring started');
+        const checkFrequency = domain.check_frequency || domain.checkFrequency;
+        const monitoringResult = await providerService.startMonitoring(domainId, domain.domain, checkFrequency);
+
+        // Log monitoring to domain_monitoring table only if provider monitoring succeeded
+        // providerService.startMonitoring returns null on failure
+        if (monitoringResult && monitoringResult.success) {
+          await domainMonitoringRepository.create({
+            domainId: domainId,
+            checkFrequency,
+            status: 1 // active
+          });
+
+          logger.info({ domainId, domain: domain.domain }, 'Provider monitoring started and logged');
+        } else {
+          logger.warn({ domainId, domain: domain.domain }, 'Provider monitoring failed or not supported - no monitoring record created');
+        }
       } catch (err) {
         logger.error({ domainId, error: err.message }, 'Failed to start provider monitoring');
       }
@@ -448,7 +525,7 @@ const domainService = {
       lastCheckedAt: domain.last_checked_at,
       nextCheckAt: domain.next_check_at,
       createdAt: domain.created_at,
-      updatedAt: business-profile_at
+      updatedAt: domain.updated_at
     };
 
     // Add submission data if available

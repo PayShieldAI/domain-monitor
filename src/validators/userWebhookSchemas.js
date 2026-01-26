@@ -10,6 +10,14 @@ const validEvents = [
 ];
 
 const createWebhookEndpointSchema = Joi.object({
+  userId: Joi.string()
+    .uuid()
+    .optional()
+    .messages({
+      'string.guid': 'Invalid user ID format - must be a valid UUID'
+    })
+    .description('User ID - required when using API key authentication. Superadmins, resellers, and API keys can specify this to create webhooks for other users.'),
+
   url: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .max(2048)

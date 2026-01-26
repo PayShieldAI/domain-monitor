@@ -401,7 +401,7 @@ class TrueBizProvider extends BaseProvider {
     const frequencyDays = parseInt(checkFrequency, 10) || 7;
     const packages = [
       {
-        type: 'io.truebiz.monitoring.packages.basic',
+        type: 'io.truebiz.monitoring.package.extended',
         frequency: {
           days: frequencyDays
         }
