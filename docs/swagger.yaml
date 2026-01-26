@@ -347,7 +347,7 @@ components:
           nullable: true
           items:
             type: string
-          example: ["domain.verified", "domain.failed"]
+          example: ["business-closed", "sentiment"]
           description: Subscribed event types. null means all events.
         description:
           type: string
@@ -380,7 +380,7 @@ components:
           format: uuid
         eventType:
           type: string
-          example: domain.verified
+          example: business-closed
         domainId:
           type: string
           format: uuid
@@ -1288,49 +1288,7 @@ paths:
                           providerResponseId:
                             type: string
 
-  /api/v1/domains/{id}/history:
-    get:
-      tags:
-        - Domains
-      summary: Get domain check history
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 10
-            maximum: 100
-      responses:
-        '200':
-          description: Check history
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        recommendation:
-                          type: string
-                        provider:
-                          type: string
-                        checkedAt:
-                          type: string
-                          format: date-time
-
+  
   /api/v1/domains/{id}/stop:
     patch:
       tags:
@@ -1516,11 +1474,11 @@ paths:
 
         **Event Types:**
         - `domain.created` - Domain registered
-        - `domain.updated` - Domain modified
+        - `business-profile` - Domain modified
         - `domain.deleted` - Domain removed
-        - `domain.verified` - Domain verification successful
-        - `domain.failed` - Domain verification failed
-        - `domain.check.completed` - Periodic check completed
+        - `business-closed` - Domain verification successful
+        - `sentiment` - Domain verification failed
+        - `website` - Periodic check completed
 
         **Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.
 
@@ -1560,12 +1518,12 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
-                  example: ["domain.verified", "domain.failed"]
+                      - business-closed
+                      - sentiment
+                      - website
+                  example: ["business-closed", "sentiment"]
                   description: Event types to subscribe to. Omit or set to null to receive all events.
                 description:
                   type: string
@@ -1683,11 +1641,11 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
+                      - business-closed
+                      - sentiment
+                      - website
                   description: Event types to subscribe to. Set to null for all events.
                 description:
                   type: string
@@ -1763,7 +1721,7 @@ paths:
       summary: Test webhook endpoint
       description: |
         Send a test webhook to verify the endpoint is working.
-        This sends a sample `domain.verified` event to your endpoint.
+        This sends a sample `business-closed` event to your endpoint.
 
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` to test webhooks for other users.

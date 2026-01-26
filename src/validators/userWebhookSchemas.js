@@ -2,11 +2,11 @@ const Joi = require('joi');
 
 const validEvents = [
   'domain.created',
-  'domain.updated',
+  'business-profile',
   'domain.deleted',
-  'domain.verified',
-  'domain.failed',
-  'domain.check.completed'
+  'business-closed',
+  'sentiment',
+  'website'
 ];
 
 const createWebhookEndpointSchema = Joi.object({

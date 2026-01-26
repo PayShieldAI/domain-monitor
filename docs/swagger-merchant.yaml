@@ -248,58 +248,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-  /api/v1/domains/{id}/history:
-    get:
-      tags:
-        - Domains
-      summary: Get domain check history
-      description: Retrieve historical check results for a domain
-      operationId: getDomainHistory
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 30
-      responses:
-        '200':
-          description: History retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        recommendation:
-                          type: string
-                          enum: [pass, fail, review]
-                        provider:
-                          type: string
-                        checkedAt:
-                          type: string
-                          format: date-time
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
+  
   /api/v1/domains/{id}/stop:
     patch:
       tags:
@@ -575,11 +524,11 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
+                      - business-closed
+                      - sentiment
+                      - website
                 description:
                   type: string
                   maxLength: 500
@@ -840,7 +789,7 @@ components:
           nullable: true
           items:
             type: string
-          example: ["domain.verified", "domain.failed"]
+          example: ["business-closed", "sentiment"]
           description: Subscribed event types. null means all events.
         description:
           type: string
@@ -873,7 +822,7 @@ components:
           format: uuid
         eventType:
           type: string
-          example: domain.verified
+          example: business-closed
         domainId:
           type: string
           format: uuid

@@ -25,16 +25,17 @@ const webhookRepository = {
     return event;
   },
 
-  async updateProcessed(id, domainId, success, errorMessage = null) {
+  async updateProcessed(id, domainId, success, event_category, errorMessage = null) {
     const sql = `
       UPDATE webhook_events
       SET processed = ?,
           domain_id = ?,
+          event_category = ?,
           processed_at = NOW(),
           error_message = ?
       WHERE id = ?
     `;
-    await query(sql, [success, domainId, errorMessage, id]);
+    await query(sql, [success, domainId, event_category, errorMessage, id]);
     return this.findById(id);
   },
 

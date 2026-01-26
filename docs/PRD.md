@@ -268,7 +268,7 @@ A microservice that:
 - **Events:**
   - domain.checked: Domain check completed
   - recommendation.changed: Recommendation value changed
-  - domain.failed: Check failed after retries
+  - sentiment: Check failed after retries
 - **Behavior:**
   - Generate secret if not provided
   - Store webhook configuration

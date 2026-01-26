@@ -483,7 +483,7 @@ const domainService = {
       lastCheckedAt: domain.last_checked_at,
       nextCheckAt: domain.next_check_at,
       createdAt: domain.created_at,
-      updatedAt: domain.updated_at
+      updatedAt: business-profile_at
     };
 
     // Add submission data if available

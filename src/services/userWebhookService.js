@@ -24,11 +24,11 @@ const userWebhookService = {
 
       const validEvents = [
         'domain.created',
-        'domain.updated',
+        'business-profile',
         'domain.deleted',
-        'domain.verified',
-        'domain.failed',
-        'domain.check.completed'
+        'business-closed',
+        'sentiment',
+        'website'
       ];
 
       const invalidEvents = events.filter(e => !validEvents.includes(e));
@@ -146,11 +146,11 @@ const userWebhookService = {
 
       const validEvents = [
         'domain.created',
-        'domain.updated',
+        'business-profile',
         'domain.deleted',
-        'domain.verified',
-        'domain.failed',
-        'domain.check.completed'
+        'business-closed',
+        'sentiment',
+        'website'
       ];
 
       const invalidEvents = events.filter(e => !validEvents.includes(e));
