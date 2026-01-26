@@ -609,7 +609,7 @@ ProviderApiLog {
 - domains
 - providers
 - webhooks
-- webhook_deliveries
+- webhook_delivery_logs
 - domain_check_history
 - reseller_merchant_relationships
 - provider_api_logs
