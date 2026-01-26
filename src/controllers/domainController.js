@@ -133,7 +133,7 @@ const domainController = {
       }
 
       const { page, limit } = parsePaginationParams(req.query);
-      const { status, recommendation, search, sortBy, sortOrder } = req.query;
+      const { status, recommendation, search, sortBy, sortOrder, industry, businessType, foundedYear } = req.query;
 
       const result = await domainService.listDomains(userContext, {
         page,
@@ -142,7 +142,10 @@ const domainController = {
         recommendation,
         search,
         sortBy,
-        sortOrder
+        sortOrder,
+        industry,
+        businessType,
+        foundedYear
       });
 
       res.json(result);
@@ -214,24 +217,6 @@ const domainController = {
       const result = await domainService.startMonitoringBulk(userContext.id, ids);
 
       res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  async getHistory(req, res, next) {
-    try {
-      const userContext = getUserContext(req);
-      if (!userContext || !userContext.id) {
-        return next(new Error('User context not found'));
-      }
-
-      const limit = parseInt(req.query.limit, 10) || 10;
-      const result = await domainService.getCheckHistory(userContext.id, req.params.id, limit);
-
-      res.json({
-        data: result
-      });
     } catch (err) {
       next(err);
     }

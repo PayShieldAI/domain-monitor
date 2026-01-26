@@ -85,16 +85,6 @@ const domainService = {
         const checkResult = await providerService.checkDomain(newDomain.id, providerPayload);
         logger.info({ domainId: newDomain.id, domain, name }, 'Initial domain check completed');
 
-        // Update submission with provider data
-        if (checkResult) {
-          await domainSubmissionRepository.updateProviderData(newDomain.id, {
-            name: checkResult.name,
-            industry: checkResult.industry,
-            businessType: checkResult.businessType,
-            foundedYear: checkResult.foundedYear
-          });
-        }
-
         // Only start monitoring if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
@@ -177,16 +167,6 @@ const domainService = {
 
         // Do initial web presence review with all fields
         const checkResult = await providerService.checkDomain(domainRecord.id, providerPayload);
-
-        // Update submission with provider data
-        if (checkResult) {
-          await domainSubmissionRepository.updateProviderData(domainRecord.id, {
-            name: checkResult.name,
-            industry: checkResult.industry,
-            businessType: checkResult.businessType,
-            foundedYear: checkResult.foundedYear
-          });
-        }
 
         // Start monitoring with provider only if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
@@ -459,21 +439,6 @@ const domainService = {
     };
   },
 
-  async getCheckHistory(userId, domainId, limit = 10) {
-    const domain = await domainRepository.findByIdAndUserId(domainId, userId);
-    if (!domain) {
-      throw new AppError('Domain not found', 404, 'DOMAIN_NOT_FOUND');
-    }
-
-    const history = await domainRepository.getCheckHistory(domainId, limit);
-    return history.map(h => ({
-      id: h.id,
-      recommendation: h.recommendation,
-      provider: h.provider,
-      checkedAt: h.checked_at
-    }));
-  },
-
   formatDomainResponse(domain, submission = null) {
     const response = {
       id: domain.id,
@@ -511,10 +476,10 @@ const domainService = {
     // Add web presence data (from provider)
     response.web_presence = {
       recommendation: domain.recommendation,
-      businessName: submission?.provider_business_name || domain.name,
-      industry: submission?.provider_industry || domain.industry,
-      businessType: submission?.provider_business_type || domain.business_type,
-      foundedYear: submission?.provider_founded_year || domain.founded_year,
+      businessName: domain.name,
+      industry: domain.industry,
+      businessType: domain.business_type,
+      foundedYear: domain.founded_year,
       provider: domain.provider
     };
 

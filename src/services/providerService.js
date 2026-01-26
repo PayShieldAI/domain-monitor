@@ -159,14 +159,6 @@ class ProviderService {
       // Update domain with check result
       await domainRepository.updateWithCheckResult(domainId, result);
 
-      // Save check history
-      await domainRepository.createCheckHistory({
-        domainId,
-        recommendation: result.recommendation,
-        provider: result.provider,
-        rawData: result.rawData
-      });
-
       const domainName = typeof domainOrPayload === 'string' ? domainOrPayload : domainOrPayload.domain;
       logger.info({
         domainId,

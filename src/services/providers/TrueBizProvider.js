@@ -829,19 +829,6 @@ class TrueBizProvider extends BaseProvider {
       };
     }
 
-    // Update domain with alert information
-    // For monitoring alerts, we typically want to log the flagged categories
-    // but not change the recommendation unless specified
-    const domainRepository = require('../../repositories/domainRepository');
-
-    // Create a check history entry for this alert
-    await domainRepository.createCheckHistory({
-      domainId: domain.id,
-      recommendation: 'review', // Alerts typically mean something needs review
-      provider: 'truebiz',
-      rawData: alertData
-    });
-
     // Extract event category from flagged categories
     // flagged_categories could be an array or an object
     let eventCategory = null;
@@ -879,7 +866,7 @@ class TrueBizProvider extends BaseProvider {
       domain: domain.domain,
       event_category: eventCategory,
       alertData,
-      action: 'check_history_created'
+      action: 'alert_processed'
     };
   }
 

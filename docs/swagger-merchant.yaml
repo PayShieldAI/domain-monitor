@@ -24,6 +24,8 @@ servers:
     description: Development server
   - url: https://api.domainmonitor.com
     description: Production server
+  - url: https://justin-dev-domainmonitor.ipo-servers.net
+    description: Justin Development server
 
 tags:
   
@@ -59,17 +61,58 @@ paths:
             type: string
             enum: [pass, fail, review]
           description: Filter by recommendation status
+        - name: industry
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by industry
+        - name: businessType
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by business type
+        - name: foundedYear
+          in: query
+          schema:
+            type: integer
+            minimum: 1800
+          description: Filter by founded year
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Search by domain or name
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [created_at, updated_at, domain, name, recommendation, last_checked_at, industry, business_type, founded_year]
+            default: created_at
+          description: Field to sort by
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number
         - name: limit
           in: query
           schema:
             type: integer
-            default: 50
+            default: 20
             maximum: 100
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
+          description: Number of items per page
       responses:
         '200':
           description: Domains retrieved successfully
