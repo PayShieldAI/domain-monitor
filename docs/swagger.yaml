@@ -74,6 +74,8 @@ servers:
     description: UAT server
   - url: https://domainmonitor.ipo-servers.net
     description: Production server
+  - url: https://justin-dev-domainmonitor.ipo-servers.net
+    description: Justin Development server
 
 tags:
   - name: Health
@@ -876,38 +878,65 @@ paths:
           schema:
             type: integer
             default: 1
+            minimum: 1
+          description: Page number
         - name: limit
           in: query
           schema:
             type: integer
             default: 20
             maximum: 100
+          description: Number of items per page
         - name: status
           in: query
           schema:
             type: string
             enum: [active, inactive]
+          description: Filter by domain status
         - name: recommendation
           in: query
           schema:
             type: string
             enum: [pass, fail, review]
+          description: Filter by recommendation status
         - name: search
           in: query
           schema:
             type: string
+            maxLength: 255
+          description: Search by domain or name
+        - name: industry
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by industry
+        - name: businessType
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by business type
+        - name: foundedYear
+          in: query
+          schema:
+            type: integer
+            minimum: 1800
+          description: Filter by founded year
         - name: sortBy
           in: query
           schema:
             type: string
-            enum: [created_at, updated_at, domain, name, recommendation, last_checked_at]
+            enum: [created_at, updated_at, domain, name, recommendation, last_checked_at, industry, business_type, founded_year]
             default: created_at
+          description: Field to sort by
         - name: sortOrder
           in: query
           schema:
             type: string
             enum: [asc, desc]
             default: desc
+          description: Sort order
       responses:
         '200':
           description: List of domains

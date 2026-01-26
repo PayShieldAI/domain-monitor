@@ -151,7 +151,10 @@ const listDomainsQuerySchema = Joi.object({
   status: Joi.string().valid('active', 'inactive'),
   recommendation: Joi.string().valid('pass', 'fail', 'review'),
   search: Joi.string().max(255),
-  sortBy: Joi.string().valid('created_at', 'updated_at', 'domain', 'name', 'recommendation', 'last_checked_at').default('created_at'),
+  industry: Joi.string().max(255),
+  businessType: Joi.string().max(255),
+  foundedYear: Joi.number().integer().min(1800).max(new Date().getFullYear()),
+  sortBy: Joi.string().valid('created_at', 'updated_at', 'domain', 'name', 'recommendation', 'last_checked_at', 'industry', 'business_type', 'founded_year').default('created_at'),
   sortOrder: Joi.string().valid('asc', 'desc').default('desc')
 });
 
