@@ -7,7 +7,7 @@ services:
     env_file:
       - .env.local
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
     # All settings (NODE_ENV, PORT, DB_*, JWT_*, LOG_LEVEL, ENCRYPTION_KEY)
     # are loaded from .env.local via env_file above
     # depends_on:

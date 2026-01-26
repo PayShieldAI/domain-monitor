@@ -133,7 +133,7 @@ const domainController = {
       }
 
       const { page, limit } = parsePaginationParams(req.query);
-      const { status, recommendation, search, sortBy, sortOrder } = req.query;
+      const { status, recommendation, search, sortBy, sortOrder, industry, businessType, foundedYear } = req.query;
 
       const result = await domainService.listDomains(userContext, {
         page,
@@ -142,7 +142,10 @@ const domainController = {
         recommendation,
         search,
         sortBy,
-        sortOrder
+        sortOrder,
+        industry,
+        businessType,
+        foundedYear
       });
 
       res.json(result);
