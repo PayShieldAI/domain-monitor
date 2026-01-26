@@ -295,28 +295,6 @@ const domainRepository = {
     }
   },
 
-  // Domain Check History
-  async createCheckHistory({ domainId, recommendation, provider, rawData }) {
-    const id = uuid();
-    const sql = `
-      INSERT INTO domain_check_history (id, domain_id, recommendation, provider, raw_data, checked_at)
-      VALUES (?, ?, ?, ?, ?, NOW())
-    `;
-    await query(sql, [id, domainId, recommendation, provider, JSON.stringify(rawData)]);
-    return id;
-  },
-
-  async getCheckHistory(domainId, limit = 10) {
-    const limitNum = parseInt(limit, 10) || 10;
-    const sql = `
-      SELECT * FROM domain_check_history
-      WHERE domain_id = ?
-      ORDER BY checked_at DESC
-      LIMIT ?
-    `;
-    return query(sql, [domainId, limitNum]);
-  },
-
   // Multi-tenant access methods
 
   async findByResellerId(resellerId, options = {}) {

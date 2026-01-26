@@ -792,32 +792,19 @@ class TrueBizProvider extends BaseProvider {
       };
     }
 
-    // Update domain with alert information
-    // For monitoring alerts, we typically want to log the flagged categories
-    // but not change the recommendation unless specified
-    const domainRepository = require('../../repositories/domainRepository');
-
-    // Create a check history entry for this alert
-    await domainRepository.createCheckHistory({
-      domainId: domain.id,
-      recommendation: 'review', // Alerts typically mean something needs review
-      provider: 'truebiz',
-      rawData: alertData
-    });
-
     logger.info({
       domainId: domain.id,
       domain: domain.domain,
       alertId: alertData.id,
       flaggedCategories: alertData.flagged_categories
-    }, 'Monitoring alert webhook processed successfully - check history created');
+    }, 'Monitoring alert webhook processed successfully');
 
     return {
       processed: true,
       domainId: domain.id,
       domain: domain.domain,
       alertData,
-      action: 'check_history_created'
+      action: 'alert_processed'
     };
   }
 

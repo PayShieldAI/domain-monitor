@@ -2,18 +2,18 @@ const { v4: uuid } = require('uuid');
 const { query, queryOne } = require('../config/database');
 
 const webhookRepository = {
-  async create({ provider, eventType, payload, signature, verified = false }) {
+  async create({ providerId, provider, eventType, payload, signature, verified = false }) {
     const id = uuid();
     const sql = `
-      INSERT INTO webhook_events (id, provider, event_type, payload, signature, verified, received_at)
-      VALUES (?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO provider_webhook_events (id, provider_id, provider, event_type, payload, signature, verified, received_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
     `;
-    await query(sql, [id, provider, eventType, JSON.stringify(payload), signature, verified]);
+    await query(sql, [id, providerId || null, provider, eventType, JSON.stringify(payload), signature, verified]);
     return this.findById(id);
   },
 
   async findById(id) {
-    const sql = 'SELECT * FROM webhook_events WHERE id = ?';
+    const sql = 'SELECT * FROM provider_webhook_events WHERE id = ?';
     const event = await queryOne(sql, [id]);
     if (event && event.payload && typeof event.payload === 'string') {
       try {
@@ -27,7 +27,7 @@ const webhookRepository = {
 
   async updateProcessed(id, domainId, success, errorMessage = null) {
     const sql = `
-      UPDATE webhook_events
+      UPDATE provider_webhook_events
       SET processed = ?,
           domain_id = ?,
           processed_at = NOW(),
@@ -41,7 +41,7 @@ const webhookRepository = {
   async findByProvider(provider, options = {}) {
     const { limit = 100, offset = 0, processed = null } = options;
 
-    let sql = 'SELECT * FROM webhook_events WHERE provider = ?';
+    let sql = 'SELECT * FROM provider_webhook_events WHERE provider = ?';
     const params = [provider];
 
     if (processed !== null) {
@@ -66,7 +66,7 @@ const webhookRepository = {
   },
 
   async findUnprocessed(provider = null) {
-    let sql = 'SELECT * FROM webhook_events WHERE processed = FALSE';
+    let sql = 'SELECT * FROM provider_webhook_events WHERE processed = FALSE';
     const params = [];
 
     if (provider) {
