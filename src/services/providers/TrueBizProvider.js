@@ -858,7 +858,7 @@ class TrueBizProvider extends BaseProvider {
       alertId: alertData.id,
       flaggedCategories: alertData.flagged_categories,
       eventCategory
-    }, 'Monitoring alert webhook processed successfully - check history created');
+    }, 'Monitoring alert webhook processed successfully');
 
     return {
       processed: true,
