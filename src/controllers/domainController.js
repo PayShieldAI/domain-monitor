@@ -220,24 +220,6 @@ const domainController = {
     } catch (err) {
       next(err);
     }
-  },
-
-  async getHistory(req, res, next) {
-    try {
-      const userContext = getUserContext(req);
-      if (!userContext || !userContext.id) {
-        return next(new Error('User context not found'));
-      }
-
-      const limit = parseInt(req.query.limit, 10) || 10;
-      const result = await domainService.getCheckHistory(userContext.id, req.params.id, limit);
-
-      res.json({
-        data: result
-      });
-    } catch (err) {
-      next(err);
-    }
   }
 };
 

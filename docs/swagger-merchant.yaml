@@ -291,58 +291,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-  /api/v1/domains/{id}/history:
-    get:
-      tags:
-        - Domains
-      summary: Get domain check history
-      description: Retrieve historical check results for a domain
-      operationId: getDomainHistory
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 30
-      responses:
-        '200':
-          description: History retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        recommendation:
-                          type: string
-                          enum: [pass, fail, review]
-                        provider:
-                          type: string
-                        checkedAt:
-                          type: string
-                          format: date-time
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
+  
   /api/v1/domains/{id}/stop:
     patch:
       tags:
@@ -407,121 +356,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-  /api/v1/domains/bulk:
-    post:
-      tags:
-        - Domains
-      summary: Bulk add domains
-      description: Add multiple domains at once
-      operationId: bulkCreateDomains
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - domains
-              properties:
-                domains:
-                  type: array
-                  maxItems: 100
-                  items:
-                    type: object
-                    required:
-                      - domain
-                    properties:
-                      domain:
-                        type: string
-                        example: example.com
-                      name:
-                        type: string
-                      checkFrequency:
-                        type: string
-                        enum: ['7', '30', '90']
-                        default: '7'
-                        description: |
-                          Monitoring frequency in days:
-                          - '7': Weekly monitoring (every 7 days)
-                          - '30': Monthly monitoring (every 30 days)
-                          - '90': Quarterly monitoring (every 90 days)
-
-                          This value is sent to the monitoring provider to configure the monitoring package frequency.
-      responses:
-        '200':
-          description: Bulk operation completed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  data:
-                    type: object
-                    properties:
-                      successful:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Domain'
-                      failed:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            domain:
-                              type: string
-                            error:
-                              type: string
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-  /api/v1/domains/bulk/retrieve:
-    post:
-      tags:
-        - Domains
-      summary: Bulk retrieve domain data
-      description: Retrieve multiple domains by their IDs
-      operationId: bulkRetrieveDomains
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - domainIds
-              properties:
-                domainIds:
-                  type: array
-                  maxItems: 100
-                  items:
-                    type: string
-                    format: uuid
-      responses:
-        '200':
-          description: Domains retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Domain'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
+  
 
   # ==========================================
   # USER WEBHOOKS
@@ -618,11 +453,11 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
+                      - business-closed
+                      - sentiment
+                      - website
                 description:
                   type: string
                   maxLength: 500
@@ -883,7 +718,7 @@ components:
           nullable: true
           items:
             type: string
-          example: ["domain.verified", "domain.failed"]
+          example: ["business-closed", "sentiment"]
           description: Subscribed event types. null means all events.
         description:
           type: string
@@ -916,7 +751,7 @@ components:
           format: uuid
         eventType:
           type: string
-          example: domain.verified
+          example: business-closed
         domainId:
           type: string
           format: uuid

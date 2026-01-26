@@ -543,84 +543,6 @@
         }
       }
     },
-    "/api/v1/domains/{id}/history": {
-      "get": {
-        "tags": ["Domains"],
-        "summary": "Get domain check history",
-        "description": "Retrieve historical check results for a domain",
-        "operationId": "getDomainHistory",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 30
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "History retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "recommendation": {
-                            "type": "string",
-                            "enum": ["pass", "fail", "review"]
-                          },
-                          "provider": {
-                            "type": "string"
-                          },
-                          "checkedAt": {
-                            "type": "string",
-                            "format": "date-time"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
     "/api/v1/domains/{id}/stop": {
       "patch": {
         "tags": ["Domains"],
@@ -918,7 +840,7 @@
       "post": {
         "tags": ["User Webhooks"],
         "summary": "Register webhook endpoint",
-        "description": "Register a new webhook endpoint to receive domain event notifications.\n\n**Event Types:**\n- `domain.created` - Domain registered\n- `domain.updated` - Domain modified\n- `domain.deleted` - Domain removed\n- `domain.verified` - Domain verification successful\n- `domain.failed` - Domain verification failed\n- `domain.check.completed` - Periodic check completed\n\n**Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.\n",
+        "description": "Register a new webhook endpoint to receive domain event notifications.\n\n**Event Types:**\n- `domain.created` - Domain registered\n- `business-profile` - Domain modified\n- `domain.deleted` - Domain removed\n- `business-closed` - Domain verification successful\n- `sentiment` - Domain verification failed\n- `website` - Periodic check completed\n\n**Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.\n",
         "operationId": "createWebhookEndpoint",
         "security": [
           {
@@ -947,14 +869,14 @@
                       "type": "string",
                       "enum": [
                         "domain.created",
-                        "domain.updated",
+                        "business-profile",
                         "domain.deleted",
-                        "domain.verified",
-                        "domain.failed",
-                        "domain.check.completed"
+                        "business-closed",
+                        "sentiment",
+                        "website"
                       ]
                     },
-                    "example": ["domain.verified", "domain.failed"],
+                    "example": ["business-closed", "sentiment"],
                     "description": "Event types to subscribe to. Omit or set to null to receive all events."
                   },
                   "description": {
@@ -1102,11 +1024,11 @@
                       "type": "string",
                       "enum": [
                         "domain.created",
-                        "domain.updated",
+                        "business-profile",
                         "domain.deleted",
-                        "domain.verified",
-                        "domain.failed",
-                        "domain.check.completed"
+                        "business-closed",
+                        "sentiment",
+                        "website"
                       ]
                     }
                   },
@@ -1477,7 +1399,7 @@
             "items": {
               "type": "string"
             },
-            "example": ["domain.verified", "domain.failed"],
+            "example": ["business-closed", "sentiment"],
             "description": "Subscribed event types. null means all events."
           },
           "description": {
@@ -1521,7 +1443,7 @@
           },
           "eventType": {
             "type": "string",
-            "example": "domain.verified"
+            "example": "business-closed"
           },
           "domainId": {
             "type": "string",

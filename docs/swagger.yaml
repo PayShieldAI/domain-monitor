@@ -349,7 +349,7 @@ components:
           nullable: true
           items:
             type: string
-          example: ["domain.verified", "domain.failed"]
+          example: ["business-closed", "sentiment"]
           description: Subscribed event types. null means all events.
         description:
           type: string
@@ -382,7 +382,7 @@ components:
           format: uuid
         eventType:
           type: string
-          example: domain.verified
+          example: business-closed
         domainId:
           type: string
           format: uuid
@@ -688,6 +688,7 @@ paths:
       summary: Change password
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -836,6 +837,7 @@ paths:
       summary: Update current user profile
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -872,6 +874,7 @@ paths:
       summary: List domains
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: page
           in: query
@@ -973,6 +976,7 @@ paths:
         If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1082,6 +1086,7 @@ paths:
         Superadmins and resellers can optionally specify a `userId` to add domains on behalf of a merchant user.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1225,6 +1230,7 @@ paths:
       summary: Retrieve multiple domains by IDs
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1265,6 +1271,7 @@ paths:
       summary: Get domain by ID
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1292,6 +1299,7 @@ paths:
       summary: Get domain with full raw data
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1317,49 +1325,7 @@ paths:
                           providerResponseId:
                             type: string
 
-  /api/v1/domains/{id}/history:
-    get:
-      tags:
-        - Domains
-      summary: Get domain check history
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 10
-            maximum: 100
-      responses:
-        '200':
-          description: Check history
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        recommendation:
-                          type: string
-                        provider:
-                          type: string
-                        checkedAt:
-                          type: string
-                          format: date-time
-
+  
   /api/v1/domains/{id}/stop:
     patch:
       tags:
@@ -1367,6 +1333,7 @@ paths:
       summary: Stop monitoring domain
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1394,6 +1361,7 @@ paths:
       summary: Start monitoring domain
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1421,6 +1389,7 @@ paths:
       summary: Stop monitoring multiple domains
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1463,6 +1432,7 @@ paths:
       summary: Start monitoring multiple domains
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1510,6 +1480,7 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to list webhooks for other users.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: userId
           in: query
@@ -1544,12 +1515,7 @@ paths:
         Register a new webhook endpoint to receive domain event notifications.
 
         **Event Types:**
-        - `domain.created` - Domain registered
-        - `domain.updated` - Domain modified
-        - `domain.deleted` - Domain removed
-        - `domain.verified` - Domain verification successful
-        - `domain.failed` - Domain verification failed
-        - `domain.check.completed` - Periodic check completed
+        - 
 
         **Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.
 
@@ -1562,6 +1528,7 @@ paths:
         Merchants can only create webhooks for themselves.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1575,7 +1542,12 @@ paths:
                   type: string
                   format: uuid
                   example: 550e8400-e29b-41d4-a716-446655440000
-                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, webhook is created for the authenticated user.
+                  description: |
+                    Target user ID for the webhook endpoint.
+                    - **Required when using API key authentication** (API keys are system-level and not tied to a specific user)
+                    - **Optional for JWT authentication** (defaults to the authenticated user's ID)
+                    - Superadmins and resellers can specify any userId
+                    - Regular merchants cannot specify userId (will be ignored and use their own ID)
                 url:
                   type: string
                   format: uri
@@ -1589,12 +1561,12 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
-                  example: ["domain.verified", "domain.failed"]
+                      - business-closed
+                      - sentiment
+                      - website
+                  example: ["business-closed", "sentiment"]
                   description: Event types to subscribe to. Omit or set to null to receive all events.
                 description:
                   type: string
@@ -1640,6 +1612,7 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to view webhooks for other users.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1683,6 +1656,7 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` to update webhooks for other users.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1712,11 +1686,11 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
+                      - business-closed
+                      - sentiment
+                      - website
                   description: Event types to subscribe to. Set to null for all events.
                 description:
                   type: string
@@ -1755,6 +1729,7 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to delete webhooks for other users.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1792,12 +1767,13 @@ paths:
       summary: Test webhook endpoint
       description: |
         Send a test webhook to verify the endpoint is working.
-        This sends a sample `domain.verified` event to your endpoint.
+        This sends a sample `business-closed` event to your endpoint.
 
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` to test webhooks for other users.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1859,6 +1835,7 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` to regenerate secrets for other users' webhooks.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1913,6 +1890,7 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to view delivery logs for other users' webhooks.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -1962,6 +1940,7 @@ paths:
       description: Get all providers with their configuration (API keys masked). Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: enabled
           in: query
@@ -1994,6 +1973,7 @@ paths:
       description: Create a new provider with encrypted API key. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -2072,6 +2052,7 @@ paths:
       summary: Get provider by ID
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2106,6 +2087,7 @@ paths:
         - Masked versions are returned in responses
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2180,6 +2162,7 @@ paths:
       summary: Delete provider
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2209,6 +2192,7 @@ paths:
       summary: Get provider by name
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: name
           in: path
@@ -2239,6 +2223,7 @@ paths:
       summary: Enable provider
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2268,6 +2253,7 @@ paths:
       summary: Disable provider
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2297,6 +2283,7 @@ paths:
       summary: Update provider priority
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2372,6 +2359,7 @@ paths:
       description: Check if provider API is reachable and responding
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2412,6 +2400,7 @@ paths:
       description: Retrieve all API keys with metadata. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: includeRevoked
           in: query
@@ -2448,6 +2437,7 @@ paths:
         Store it securely. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -2538,6 +2528,7 @@ paths:
       description: Retrieve details of a specific API key. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2571,6 +2562,7 @@ paths:
       description: Update name, description, permissions, or expiration. Cannot update revoked keys. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2628,6 +2620,7 @@ paths:
       description: Permanently delete an API key from the database. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path
@@ -2663,6 +2656,7 @@ paths:
         Revoked keys remain in the database for audit purposes. Requires superadmin role.
       security:
         - BearerAuth: []
+        - ApiKeyAuth: []
       parameters:
         - name: id
           in: path

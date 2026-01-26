@@ -15,10 +15,10 @@ const webhookController = {
     // TrueBiz event mappings
     if (provider === 'truebiz') {
       const mappings = {
-        'domain.verified': 'domain.verified',
-        'domain.failed': 'domain.failed',
-        'domain.check_complete': 'domain.check.completed',
-        'domain.updated': 'domain.updated'
+        'business-closed': 'business-closed',
+        'sentiment': 'sentiment',
+        'website': 'website',
+        'business-profile': 'business-profile'
       };
       return mappings[providerEvent] || null;
     }
@@ -57,6 +57,7 @@ const webhookController = {
         throw new AppError(`Provider not initialized: ${provider}`, 500, 'PROVIDER_NOT_INITIALIZED');
       }
 
+      //TODO -  this signature handling passed from the  provider after signature validation 
       // Extract signature from headers (provider-specific)
       // Common signature headers: x-signature, x-webhook-signature, signature
       signature = req.headers['x-signature'] ||
@@ -127,6 +128,7 @@ const webhookController = {
           webhookEvent.id,
           result.domainId || null,
           true,
+          result.event_category || null,
           null
         );
 
@@ -142,10 +144,13 @@ const webhookController = {
           try {
             const domain = await domainRepository.findById(result.domainId);
             if (domain && domain.user_id) {
-              const eventType = this.mapProviderEventToUserEvent(payload.type, provider);
-              if (eventType) {
+              // Use event_category from provider result
+              const eventCategory = result.event_category;
+
+              // Only send webhook if event_category is present and valid
+              if (eventCategory) {
                 const userPayload = {
-                  event: eventType,
+                  event: eventCategory,
                   timestamp: new Date().toISOString(),
                   data: {
                     domainId: result.domainId,
@@ -158,9 +163,10 @@ const webhookController = {
                 };
 
                 // Deliver asynchronously (don't wait)
+                // This will automatically check if user is subscribed to this event_category
                 webhookDeliveryService.deliverToUserEndpoints(
                   domain.user_id,
-                  eventType,
+                  eventCategory,
                   userPayload,
                   result.domainId
                 ).catch(err => {
@@ -170,8 +176,14 @@ const webhookController = {
                 logger.info({
                   userId: domain.user_id,
                   domainId: result.domainId,
-                  eventType
+                  eventCategory
                 }, 'Webhook forwarded to user endpoints');
+              } else {
+                logger.debug({
+                  userId: domain.user_id,
+                  domainId: result.domainId,
+                  providerEvent: payload.type
+                }, 'No event_category mapped for provider event - webhook not forwarded to user');
               }
             }
           } catch (err) {
@@ -185,6 +197,7 @@ const webhookController = {
           webhookEvent.id,
           null,
           false,
+          null,
           error.message
         );
 
@@ -272,6 +285,7 @@ const webhookController = {
       await webhookRepository.updateProcessed(
         webhookEvent.id,
         result.domainId || null,
+        result.event_category || null,
         true,
         null
       );
@@ -285,7 +299,7 @@ const webhookController = {
 
     } catch (error) {
       // Update with new error message
-      await webhookRepository.updateProcessed(id, null, false, error.message);
+      await webhookRepository.updateProcessed(id, null, false, null, error.message);
       next(error);
     }
   }

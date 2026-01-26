@@ -401,7 +401,7 @@ class TrueBizProvider extends BaseProvider {
     const frequencyDays = parseInt(checkFrequency, 10) || 7;
     const packages = [
       {
-        type: 'io.truebiz.monitoring.packages.basic',
+        type: 'io.truebiz.monitoring.package.extended',
         frequency: {
           days: frequencyDays
         }
@@ -621,6 +621,41 @@ class TrueBizProvider extends BaseProvider {
   }
 
   /**
+   * Map TrueBiz event types to user event types
+   * TrueBiz may send event variations like:
+   * - business-closed, business-closed-site-content, etc. → business-closed
+   * - sentiment, sentiment-negative, etc. → sentiment
+   * - website, website-down, etc. → website
+   * - business-profile, business-profile-updated, etc. → business-profile
+   *
+   * @param {string} truebizEventType - TrueBiz event type
+   * @returns {string|null} User event type or null if not mappable
+   */
+  mapEventTypeToUserEvent(truebizEventType) {
+    if (!truebizEventType) return null;
+
+    const eventLower = truebizEventType.toLowerCase();
+
+    // Map TrueBiz event patterns to user events
+    // Check prefixes to handle variations
+    if (eventLower.startsWith('business-closed')) {
+      return 'business-closed';
+    }
+    if (eventLower.startsWith('sentiment')) {
+      return 'sentiment';
+    }
+    if (eventLower.startsWith('website')) {
+      return 'website';
+    }
+    if (eventLower.startsWith('business-profile')) {
+      return 'business-profile';
+    }
+
+    // No mapping found
+    return null;
+  }
+
+  /**
    * Handle webhook from TrueBiz
    *
    * Two webhook types:
@@ -707,10 +742,12 @@ class TrueBizProvider extends BaseProvider {
       resourceId: webhookPayload.resource_id
     }, 'Company match request webhook processed');
 
+    // Company match requests are business-profile related events
     return {
       processed: true,
       domainId: domain.id,
       domain: domainName,
+      event_category: 'business-profile',
       action: 'company_match_request_received',
       webhookPayload
     };
@@ -792,32 +829,44 @@ class TrueBizProvider extends BaseProvider {
       };
     }
 
-    // Update domain with alert information
-    // For monitoring alerts, we typically want to log the flagged categories
-    // but not change the recommendation unless specified
-    const domainRepository = require('../../repositories/domainRepository');
+    // Extract event category from flagged categories
+    // flagged_categories could be an array or an object
+    let eventCategory = null;
+    if (alertData.flagged_categories) {
+      if (Array.isArray(alertData.flagged_categories) && alertData.flagged_categories.length > 0) {
+        // If it's an array, use the first category
+        const firstCategory = alertData.flagged_categories[0];
+        const categoryName = typeof firstCategory === 'string' ? firstCategory : firstCategory?.name;
+        eventCategory = this.mapEventTypeToUserEvent(categoryName);
+      } else if (typeof alertData.flagged_categories === 'object' && alertData.flagged_categories.name) {
+        // If it's an object with name property
+        eventCategory = this.mapEventTypeToUserEvent(alertData.flagged_categories.name);
+      } else if (typeof alertData.flagged_categories === 'string') {
+        // If it's just a string
+        eventCategory = this.mapEventTypeToUserEvent(alertData.flagged_categories);
+      }
+    }
 
-    // Create a check history entry for this alert
-    await domainRepository.createCheckHistory({
-      domainId: domain.id,
-      recommendation: 'review', // Alerts typically mean something needs review
-      provider: 'truebiz',
-      rawData: alertData
-    });
+    // Fallback to payload type if no category found
+    if (!eventCategory && webhookPayload.type) {
+      eventCategory = this.mapEventTypeToUserEvent(webhookPayload.type);
+    }
 
     logger.info({
       domainId: domain.id,
       domain: domain.domain,
       alertId: alertData.id,
-      flaggedCategories: alertData.flagged_categories
-    }, 'Monitoring alert webhook processed successfully - check history created');
+      flaggedCategories: alertData.flagged_categories,
+      eventCategory
+    }, 'Monitoring alert webhook processed successfully');
 
     return {
       processed: true,
       domainId: domain.id,
       domain: domain.domain,
+      event_category: eventCategory,
       alertData,
-      action: 'check_history_created'
+      action: 'alert_processed'
     };
   }
 
