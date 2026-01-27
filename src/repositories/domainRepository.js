@@ -45,6 +45,11 @@ const domainRepository = {
     return queryOne(sql, [id]);
   },
 
+  async findByDomainName(domainName) {
+    const sql = 'SELECT * FROM domains WHERE domain = ?';
+    return queryOne(sql, [domainName]);
+  },
+
   async findByIdAndUserId(id, userId) {
     const sql = 'SELECT * FROM domains WHERE id = ? AND user_id = ?';
     return queryOne(sql, [id, userId]);
@@ -55,44 +60,113 @@ const domainRepository = {
     return queryOne(sql, [domain, userId]);
   },
 
-  async findByUserId(userId, { page = 1, limit = 20, status, recommendation, search, sortBy = 'created_at', sortOrder = 'desc' }) {
-    // Ensure page and limit are integers
+  /**
+   * Find domains with filtering, pagination and sorting
+   * @param {string} mode - 'all' (superadmin), 'user' (merchant), 'reseller'
+   * @param {string|null} id - userId or resellerId (null for 'all' mode)
+   * @param {object} options - filter and pagination options
+   */
+  async findDomains(mode, id, options = {}) {
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      recommendation,
+      search,
+      industry,
+      businessType,
+      foundedYear,
+      sortBy = 'created_at',
+      sortOrder = 'desc'
+    } = options;
+
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 20;
 
-    let sql = 'SELECT * FROM domains WHERE user_id = ?';
-    let countSql = 'SELECT COUNT(*) as total FROM domains WHERE user_id = ?';
-    const params = [userId];
-    const countParams = [userId];
+    // Build base query based on mode
+    let sql, countSql, prefix;
+    const params = [];
+    const countParams = [];
 
+    if (mode === 'all') {
+      sql = 'SELECT * FROM domains WHERE 1=1';
+      countSql = 'SELECT COUNT(*) as total FROM domains WHERE 1=1';
+      prefix = '';
+    } else if (mode === 'reseller') {
+      sql = `
+        SELECT d.* FROM domains d
+        INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+        WHERE rmr.reseller_id = ?
+      `;
+      countSql = `
+        SELECT COUNT(*) as total FROM domains d
+        INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+        WHERE rmr.reseller_id = ?
+      `;
+      prefix = 'd.';
+      params.push(id);
+      countParams.push(id);
+    } else {
+      // mode === 'user'
+      sql = 'SELECT * FROM domains WHERE user_id = ?';
+      countSql = 'SELECT COUNT(*) as total FROM domains WHERE user_id = ?';
+      prefix = '';
+      params.push(id);
+      countParams.push(id);
+    }
+
+    // Apply filters
     if (status) {
-      sql += ' AND status = ?';
-      countSql += ' AND status = ?';
+      sql += ` AND ${prefix}status = ?`;
+      countSql += ` AND ${prefix}status = ?`;
       params.push(status);
       countParams.push(status);
     }
 
     if (recommendation) {
-      sql += ' AND recommendation = ?';
-      countSql += ' AND recommendation = ?';
+      sql += ` AND ${prefix}recommendation = ?`;
+      countSql += ` AND ${prefix}recommendation = ?`;
       params.push(recommendation);
       countParams.push(recommendation);
     }
 
     if (search) {
-      sql += ' AND (domain LIKE ? OR name LIKE ?)';
-      countSql += ' AND (domain LIKE ? OR name LIKE ?)';
+      sql += ` AND (${prefix}domain LIKE ? OR ${prefix}name LIKE ?)`;
+      countSql += ` AND (${prefix}domain LIKE ? OR ${prefix}name LIKE ?)`;
       const searchPattern = `%${search}%`;
       params.push(searchPattern, searchPattern);
       countParams.push(searchPattern, searchPattern);
     }
 
-    // Validate sortBy to prevent SQL injection
-    const allowedSortColumns = ['created_at', 'updated_at', 'domain', 'name', 'recommendation', 'last_checked_at'];
+    if (industry) {
+      sql += ` AND ${prefix}industry LIKE ?`;
+      countSql += ` AND ${prefix}industry LIKE ?`;
+      const industryPattern = `%${industry}%`;
+      params.push(industryPattern);
+      countParams.push(industryPattern);
+    }
+
+    if (businessType) {
+      sql += ` AND ${prefix}business_type LIKE ?`;
+      countSql += ` AND ${prefix}business_type LIKE ?`;
+      const businessTypePattern = `%${businessType}%`;
+      params.push(businessTypePattern);
+      countParams.push(businessTypePattern);
+    }
+
+    if (foundedYear) {
+      sql += ` AND ${prefix}founded_year = ?`;
+      countSql += ` AND ${prefix}founded_year = ?`;
+      params.push(parseInt(foundedYear, 10));
+      countParams.push(parseInt(foundedYear, 10));
+    }
+
+    // Apply sorting
+    const allowedSortColumns = ['created_at', 'updated_at', 'domain', 'name', 'recommendation', 'last_checked_at', 'industry', 'business_type', 'founded_year'];
     const sortColumn = allowedSortColumns.includes(sortBy) ? sortBy : 'created_at';
     const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-    sql += ` ORDER BY ${sortColumn} ${order}`;
+    sql += ` ORDER BY ${prefix}${sortColumn} ${order}`;
     sql += ' LIMIT ? OFFSET ?';
     params.push(limitNum, (pageNum - 1) * limitNum);
 
@@ -103,8 +177,15 @@ const domainRepository = {
 
     return {
       domains,
-      total: countResult.total
+      total: countResult.total,
+      page: pageNum,
+      limit: limitNum
     };
+  },
+
+  // Convenience methods that use findDomains
+  async findByUserId(userId, options = {}) {
+    return this.findDomains('user', userId, options);
   },
 
   async findByIds(ids, userId) {
@@ -219,152 +300,14 @@ const domainRepository = {
     }
   },
 
-  // Domain Check History
-  async createCheckHistory({ domainId, recommendation, provider, rawData }) {
-    const id = uuid();
-    const sql = `
-      INSERT INTO domain_check_history (id, domain_id, recommendation, provider, raw_data, checked_at)
-      VALUES (?, ?, ?, ?, ?, NOW())
-    `;
-    await query(sql, [id, domainId, recommendation, provider, JSON.stringify(rawData)]);
-    return id;
-  },
-
-  async getCheckHistory(domainId, limit = 10) {
-    const limitNum = parseInt(limit, 10) || 10;
-    const sql = `
-      SELECT * FROM domain_check_history
-      WHERE domain_id = ?
-      ORDER BY checked_at DESC
-      LIMIT ?
-    `;
-    return query(sql, [domainId, limitNum]);
-  },
-
   // Multi-tenant access methods
 
-  /**
-   * Find domains accessible by a reseller (domains of assigned merchants)
-   */
-  async findByResellerId(resellerId, { page = 1, limit = 20, status, recommendation, search, sortBy = 'created_at', sortOrder = 'desc' }) {
-    // Ensure page and limit are integers
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
-
-    let sql = `
-      SELECT d.* FROM domains d
-      INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
-      WHERE rmr.reseller_id = ?
-    `;
-    let countSql = `
-      SELECT COUNT(*) as total FROM domains d
-      INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
-      WHERE rmr.reseller_id = ?
-    `;
-    const params = [resellerId];
-    const countParams = [resellerId];
-
-    if (status) {
-      sql += ' AND d.status = ?';
-      countSql += ' AND d.status = ?';
-      params.push(status);
-      countParams.push(status);
-    }
-
-    if (recommendation) {
-      sql += ' AND d.recommendation = ?';
-      countSql += ' AND d.recommendation = ?';
-      params.push(recommendation);
-      countParams.push(recommendation);
-    }
-
-    if (search) {
-      sql += ' AND (d.domain LIKE ? OR d.name LIKE ?)';
-      countSql += ' AND (d.domain LIKE ? OR d.name LIKE ?)';
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern);
-      countParams.push(searchPattern, searchPattern);
-    }
-
-    const allowedSortFields = ['created_at', 'domain', 'recommendation', 'last_checked_at'];
-    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
-    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-
-    sql += ` ORDER BY d.${safeSortBy} ${safeSortOrder}`;
-
-    const offset = (pageNum - 1) * limitNum;
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(limitNum, offset);
-
-    const [domains, countResult] = await Promise.all([
-      query(sql, params),
-      queryOne(countSql, countParams)
-    ]);
-
-    return {
-      domains,
-      total: countResult.total,
-      page: pageNum,
-      limit: limitNum
-    };
+  async findByResellerId(resellerId, options = {}) {
+    return this.findDomains('reseller', resellerId, options);
   },
 
-  /**
-   * Find all domains (superadmin access)
-   */
-  async findAll({ page = 1, limit = 20, status, recommendation, search, sortBy = 'created_at', sortOrder = 'desc' }) {
-    // Ensure page and limit are integers
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
-
-    let sql = 'SELECT * FROM domains WHERE 1=1';
-    let countSql = 'SELECT COUNT(*) as total FROM domains WHERE 1=1';
-    const params = [];
-    const countParams = [];
-
-    if (status) {
-      sql += ' AND status = ?';
-      countSql += ' AND status = ?';
-      params.push(status);
-      countParams.push(status);
-    }
-
-    if (recommendation) {
-      sql += ' AND recommendation = ?';
-      countSql += ' AND recommendation = ?';
-      params.push(recommendation);
-      countParams.push(recommendation);
-    }
-
-    if (search) {
-      sql += ' AND (domain LIKE ? OR name LIKE ?)';
-      countSql += ' AND (domain LIKE ? OR name LIKE ?)';
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern);
-      countParams.push(searchPattern, searchPattern);
-    }
-
-    const allowedSortFields = ['created_at', 'domain', 'recommendation', 'last_checked_at'];
-    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
-    const safeSortOrder = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-
-    sql += ` ORDER BY ${safeSortBy} ${safeSortOrder}`;
-
-    const offset = (pageNum - 1) * limitNum;
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(limitNum, offset);
-
-    const [domains, countResult] = await Promise.all([
-      query(sql, params),
-      queryOne(countSql, countParams)
-    ]);
-
-    return {
-      domains,
-      total: countResult.total,
-      page: pageNum,
-      limit: limitNum
-    };
+  async findAll(options = {}) {
+    return this.findDomains('all', null, options);
   },
 
   /**

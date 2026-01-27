@@ -4,9 +4,11 @@ const cors = require('cors');
 const compression = require('compression');
 const path = require('path');
 
+const config = require('./config');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
+const apiLogger = require('./middlewares/apiLogger');
 
 const app = express();
 
@@ -41,6 +43,14 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: true }));
+
+// API request/response logging to database
+app.use(apiLogger({
+  enabled: config.apiLogging.enabled,
+  logRequestBody: config.apiLogging.logRequestBody,
+  logResponseBody: config.apiLogging.logResponseBody,
+  skipPaths: ['/health', '/metrics', '/docs']
+}));
 
 // Serve API documentation
 app.use('/docs', express.static(path.join(__dirname, '../docs')));

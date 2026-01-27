@@ -471,14 +471,14 @@ TrueBizProvider.checkDomain(domain, domainId)
 
 ### 5.3 Adding Domains for Merchants
 
-Superadmins and resellers can add domains on behalf of merchants using the `merchantId` parameter:
+Superadmins and resellers can add domains on behalf of merchants using the `userId` parameter:
 
 ```
 POST /api/v1/domains
 {
   "domain": "example.com",
   "checkFrequency": "daily",
-  "merchantId": "uuid-of-merchant"  // Optional: for superadmin/reseller
+  "userId": "uuid-of-merchant"  // Optional: for superadmin/reseller
 }
 ```
 
@@ -486,14 +486,14 @@ POST /api/v1/domains
 POST /api/v1/domains/bulk
 {
   "domains": [{"domain": "example1.com"}, {"domain": "example2.com"}],
-  "merchantId": "uuid-of-merchant"  // Optional: for superadmin/reseller
+  "userId": "uuid-of-merchant"  // Optional: for superadmin/reseller
 }
 ```
 
 **Authorization Logic:**
-- If `merchantId` is provided and caller is superadmin/reseller: domain added to merchant's account
-- If `merchantId` is not provided: domain added to caller's own account
-- Merchants cannot use `merchantId` parameter (ignored if provided)
+- If `userId` is provided and caller is superadmin/reseller: domain added to merchant user's account
+- If `userId` is not provided: domain added to caller's own account
+- Merchants cannot use `userId` parameter (ignored if provided)
 
 ### 5.4 Reseller-Merchant Relationship
 

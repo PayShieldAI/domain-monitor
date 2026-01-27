@@ -1,5 +1,6 @@
 const domainRepository = require('../repositories/domainRepository');
 const domainSubmissionRepository = require('../repositories/domainSubmissionRepository');
+const domainMonitoringRepository = require('../repositories/domainMonitoringRepository');
 const providerService = require('./providerService');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
@@ -46,6 +47,7 @@ const domainService = {
     // Save submitted data to domain_submissions table
     await domainSubmissionRepository.create({
       domainId: newDomain.id,
+      submittedDomainName:domain,
       submittedBusinessName: name,
       submittedDescription: description,
       submittedWebsite: website,
@@ -85,22 +87,29 @@ const domainService = {
         const checkResult = await providerService.checkDomain(newDomain.id, providerPayload);
         logger.info({ domainId: newDomain.id, domain, name }, 'Initial domain check completed');
 
-        // Update submission with provider data
-        if (checkResult) {
-          await domainSubmissionRepository.updateProviderData(newDomain.id, {
-            name: checkResult.name,
-            industry: checkResult.industry,
-            businessType: checkResult.businessType,
-            foundedYear: checkResult.foundedYear
-          });
-        }
-
         // Only start monitoring if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
         if (checkFrequency && domain) {
-          await providerService.startMonitoring(newDomain.id, domain, checkFrequency);
-          logger.info({ domainId: newDomain.id, domain, checkFrequency }, 'Domain monitoring started with provider');
+          try {
+            const monitoringResult = await providerService.startMonitoring(newDomain.id, domain, checkFrequency);
+
+            // Log monitoring to domain_monitoring table only if provider monitoring succeeded
+            // providerService.startMonitoring returns null on failure
+            if (monitoringResult && monitoringResult.success) {
+              await domainMonitoringRepository.create({
+                domainId: newDomain.id,
+                checkFrequency,
+                status: 1 // active - monitoring successfully started
+              });
+
+              logger.info({ domainId: newDomain.id, domain, checkFrequency }, 'Domain monitoring started with provider and logged');
+            } else {
+              logger.warn({ domainId: newDomain.id, domain, checkFrequency }, 'Provider monitoring failed or not supported - no monitoring record created');
+            }
+          } catch (monitoringErr) {
+            logger.error({ domainId: newDomain.id, error: monitoringErr.message }, 'Failed to start provider monitoring');
+          }
         } else if (!checkFrequency) {
           logger.info({ domainId: newDomain.id, domain, name }, 'Skipping monitoring - no checkFrequency provided (one-time check only)');
         } else {
@@ -178,27 +187,53 @@ const domainService = {
         // Do initial web presence review with all fields
         const checkResult = await providerService.checkDomain(domainRecord.id, providerPayload);
 
-        // Update submission with provider data
-        if (checkResult) {
-          await domainSubmissionRepository.updateProviderData(domainRecord.id, {
-            name: checkResult.name,
-            industry: checkResult.industry,
-            businessType: checkResult.businessType,
-            foundedYear: checkResult.foundedYear
-          });
-        }
-
         // Start monitoring with provider only if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
         const itemCheckFrequency = originalItem.checkFrequency;
         if (itemCheckFrequency && domainRecord.domain) {
-          await providerService.startMonitoring(domainRecord.id, domainRecord.domain, itemCheckFrequency);
-          providerResults.checked.push({
-            domainId: domainRecord.id,
-            domain: domainRecord.domain,
-            status: 'checked_and_monitoring'
-          });
+          try {
+            const monitoringResult = await providerService.startMonitoring(domainRecord.id, domainRecord.domain, itemCheckFrequency);
+
+            // Log monitoring to domain_monitoring table only if provider monitoring succeeded
+            // providerService.startMonitoring returns null on failure
+            if (monitoringResult && monitoringResult.success) {
+              await domainMonitoringRepository.create({
+                domainId: domainRecord.id,
+                checkFrequency: itemCheckFrequency,
+                status: 1 // active
+              });
+
+              providerResults.checked.push({
+                domainId: domainRecord.id,
+                domain: domainRecord.domain,
+                status: 'checked_and_monitoring'
+              });
+            } else {
+              logger.warn({
+                domainId: domainRecord.id,
+                domain: domainRecord.domain
+              }, 'Provider monitoring failed or not supported - no monitoring record created');
+
+              providerResults.checkFailed.push({
+                domainId: domainRecord.id,
+                domain: domainRecord.domain,
+                error: 'Monitoring failed or not supported'
+              });
+            }
+          } catch (monitoringErr) {
+            logger.error({
+              domainId: domainRecord.id,
+              domain: domainRecord.domain,
+              error: monitoringErr.message
+            }, 'Failed to start provider monitoring for bulk domain');
+
+            providerResults.checkFailed.push({
+              domainId: domainRecord.id,
+              domain: domainRecord.domain,
+              error: monitoringErr.message
+            });
+          }
         } else {
           let reason = 'one-time check only';
           if (!itemCheckFrequency) {
@@ -371,7 +406,11 @@ const domainService = {
     (async () => {
       try {
         await providerService.stopMonitoring(domainId, domain.domain);
-        logger.info({ domainId, domain: domain.domain }, 'Provider monitoring stopped');
+
+        // Update domain_monitoring status to inactive
+        await domainMonitoringRepository.updateStatus(domainId, 0);
+
+        logger.info({ domainId, domain: domain.domain }, 'Provider monitoring stopped and status updated');
       } catch (err) {
         logger.error({ domainId, error: err.message }, 'Failed to stop provider monitoring');
       }
@@ -400,7 +439,11 @@ const domainService = {
         if (domainName) {
           try {
             await providerService.stopMonitoring(domainId, domainName);
-            logger.info({ domainId, domain: domainName }, 'Provider monitoring stopped');
+
+            // Update domain_monitoring status to inactive
+            await domainMonitoringRepository.updateStatus(domainId, 0);
+
+            logger.info({ domainId, domain: domainName }, 'Provider monitoring stopped and status updated');
           } catch (err) {
             logger.error({ domainId, error: err.message }, 'Failed to stop provider monitoring');
           }
@@ -428,8 +471,22 @@ const domainService = {
     (async () => {
       try {
         await providerService.checkDomain(domainId, domain.domain);
-        await providerService.startMonitoring(domainId, domain.domain, domain.check_frequency || domain.checkFrequency);
-        logger.info({ domainId, domain: domain.domain }, 'Provider monitoring started');
+        const checkFrequency = domain.check_frequency || domain.checkFrequency;
+        const monitoringResult = await providerService.startMonitoring(domainId, domain.domain, checkFrequency);
+
+        // Log monitoring to domain_monitoring table only if provider monitoring succeeded
+        // providerService.startMonitoring returns null on failure
+        if (monitoringResult && monitoringResult.success) {
+          await domainMonitoringRepository.create({
+            domainId: domainId,
+            checkFrequency,
+            status: 1 // active
+          });
+
+          logger.info({ domainId, domain: domain.domain }, 'Provider monitoring started and logged');
+        } else {
+          logger.warn({ domainId, domain: domain.domain }, 'Provider monitoring failed or not supported - no monitoring record created');
+        }
       } catch (err) {
         logger.error({ domainId, error: err.message }, 'Failed to start provider monitoring');
       }
@@ -457,21 +514,6 @@ const domainService = {
       notFound: result.notFound,
       message: `Monitoring restarted for ${result.updated.length} domain(s)`
     };
-  },
-
-  async getCheckHistory(userId, domainId, limit = 10) {
-    const domain = await domainRepository.findByIdAndUserId(domainId, userId);
-    if (!domain) {
-      throw new AppError('Domain not found', 404, 'DOMAIN_NOT_FOUND');
-    }
-
-    const history = await domainRepository.getCheckHistory(domainId, limit);
-    return history.map(h => ({
-      id: h.id,
-      recommendation: h.recommendation,
-      provider: h.provider,
-      checkedAt: h.checked_at
-    }));
   },
 
   formatDomainResponse(domain, submission = null) {
@@ -511,10 +553,10 @@ const domainService = {
     // Add web presence data (from provider)
     response.web_presence = {
       recommendation: domain.recommendation,
-      businessName: submission?.provider_business_name || domain.name,
-      industry: submission?.provider_industry || domain.industry,
-      businessType: submission?.provider_business_type || domain.business_type,
-      foundedYear: submission?.provider_founded_year || domain.founded_year,
+      businessName: domain.name,
+      industry: domain.industry,
+      businessType: domain.business_type,
+      foundedYear: domain.founded_year,
       provider: domain.provider
     };
 
@@ -525,7 +567,22 @@ const domainService = {
     const response = this.formatDomainResponse(domain, submission);
 
     // Add raw provider data and response ID to web_presence
-    response.web_presence.rawData = domain.raw_data ? JSON.parse(domain.raw_data) : null;
+    // MySQL JSON columns are automatically parsed by mysql2, but handle string case too
+    let rawData = null;
+    if (domain.raw_data) {
+      if (typeof domain.raw_data === 'string') {
+        try {
+          rawData = JSON.parse(domain.raw_data);
+        } catch (err) {
+          logger.warn({ domainId: domain.id, error: err.message }, 'Failed to parse raw_data');
+          rawData = domain.raw_data;
+        }
+      } else {
+        rawData = domain.raw_data;
+      }
+    }
+
+    response.web_presence.rawData = rawData;
     response.web_presence.providerResponseId = domain.provider_response_id;
 
     return response;

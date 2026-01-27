@@ -22,6 +22,12 @@ const config = {
     level: process.env.LOG_LEVEL || 'info'
   },
 
+  apiLogging: {
+    enabled: process.env.API_LOGGING_ENABLED === 'true' || process.env.NODE_ENV !== 'test',
+    logRequestBody: process.env.API_LOGGING_REQUEST_BODY !== 'false',
+    logResponseBody: process.env.API_LOGGING_RESPONSE_BODY === 'true'
+  },
+
   isDevelopment() {
     return this.env === 'development';
   },

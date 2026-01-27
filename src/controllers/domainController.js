@@ -28,17 +28,17 @@ function getUserContext(req) {
 const domainController = {
   async create(req, res, next) {
     try {
-      const { merchantId, ...domainData } = req.body;
+      const { userId, ...domainData } = req.body;
 
       const userContext = getUserContext(req);
       if (!userContext) {
         return next(new Error('User context not found'));
       }
 
-      // Determine target user: superadmin/reseller/API key can specify merchantId
+      // Determine target user: superadmin/reseller/API key can specify userId
       const canSpecifyMerchant = isSuperadmin(userContext) || isReseller(userContext) || userContext.isApiKey;
-      const targetUserId = canSpecifyMerchant && merchantId
-        ? merchantId
+      const targetUserId = canSpecifyMerchant && userId
+        ? userId
         : userContext.id;
 
       const result = await domainService.addDomain(targetUserId, domainData);
@@ -54,17 +54,17 @@ const domainController = {
 
   async bulkCreate(req, res, next) {
     try {
-      const { domains, merchantId } = req.body;
+      const { domains, userId } = req.body;
 
       const userContext = getUserContext(req);
       if (!userContext) {
         return next(new Error('User context not found'));
       }
 
-      // Determine target user: superadmin/reseller/API key can specify merchantId
+      // Determine target user: superadmin/reseller/API key can specify userId
       const canSpecifyMerchant = isSuperadmin(userContext) || isReseller(userContext) || userContext.isApiKey;
-      const targetUserId = canSpecifyMerchant && merchantId
-        ? merchantId
+      const targetUserId = canSpecifyMerchant && userId
+        ? userId
         : userContext.id;
 
       const result = await domainService.addDomainsBulk(targetUserId, domains);
@@ -133,7 +133,7 @@ const domainController = {
       }
 
       const { page, limit } = parsePaginationParams(req.query);
-      const { status, recommendation, search, sortBy, sortOrder } = req.query;
+      const { status, recommendation, search, sortBy, sortOrder, industry, businessType, foundedYear } = req.query;
 
       const result = await domainService.listDomains(userContext, {
         page,
@@ -142,7 +142,10 @@ const domainController = {
         recommendation,
         search,
         sortBy,
-        sortOrder
+        sortOrder,
+        industry,
+        businessType,
+        foundedYear
       });
 
       res.json(result);
@@ -214,24 +217,6 @@ const domainController = {
       const result = await domainService.startMonitoringBulk(userContext.id, ids);
 
       res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  async getHistory(req, res, next) {
-    try {
-      const userContext = getUserContext(req);
-      if (!userContext || !userContext.id) {
-        return next(new Error('User context not found'));
-      }
-
-      const limit = parseInt(req.query.limit, 10) || 10;
-      const result = await domainService.getCheckHistory(userContext.id, req.params.id, limit);
-
-      res.json({
-        data: result
-      });
     } catch (err) {
       next(err);
     }

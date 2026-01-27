@@ -114,18 +114,6 @@ CREATE TABLE webhook_deliveries (
   INDEX idx_status_attempts (status, attempts, last_attempt_at)
 );
 
--- Domain Check History (for audit/trends)
-CREATE TABLE domain_check_history (
-  id CHAR(36) PRIMARY KEY,
-  domain_id CHAR(36) NOT NULL,
-  recommendation ENUM('pass', 'fail', 'review') NULL,
-  provider VARCHAR(50),
-  raw_data JSON,
-  checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-  FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-  INDEX idx_domain_checked (domain_id, checked_at)
-);
 
 -- Password Reset Tokens
 CREATE TABLE password_reset_tokens (
