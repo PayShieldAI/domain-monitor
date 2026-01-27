@@ -45,6 +45,11 @@ const domainRepository = {
     return queryOne(sql, [id]);
   },
 
+  async findByDomainName(domainName) {
+    const sql = 'SELECT * FROM domains WHERE domain = ?';
+    return queryOne(sql, [domainName]);
+  },
+
   async findByIdAndUserId(id, userId) {
     const sql = 'SELECT * FROM domains WHERE id = ? AND user_id = ?';
     return queryOne(sql, [id, userId]);

@@ -724,7 +724,7 @@ class TrueBizProvider extends BaseProvider {
 
     // Find domain in our database
     const domainRepository = require('../../repositories/domainRepository');
-    const domain = await domainRepository.findById(domainName);
+    const domain = await domainRepository.findByDomainName(domainName);
 
     if (!domain) {
       logger.warn({ domainName }, 'Domain not found for company match request');
@@ -822,7 +822,7 @@ class TrueBizProvider extends BaseProvider {
     // If not found by external ref, try by domain name
     if (!domain && alertData.domain) {
       const domainRepository = require('../../repositories/domainRepository');
-      domain = await domainRepository.findById(alertData.domain);
+      domain = await domainRepository.findByDomainName(alertData.domain);
       logger.info({
         domainName: alertData.domain,
         found: !!domain
