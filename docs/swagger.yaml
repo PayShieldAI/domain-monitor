@@ -68,8 +68,6 @@ servers:
     description: UAT server
   - url: https://monitor.payshield.ai
     description: Production server
-  - url: https://justin-dev-domainmonitor.ipo-servers.net
-    description: Justin Development server
 
 tags:
   - name: Health

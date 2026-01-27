@@ -28,6 +28,8 @@ const config = {
       uat: process.env.API_BASE_URL_UAT || 'https://uat-monitor.payshield.ai',
       production: process.env.API_BASE_URL_PROD || 'https://monitor.payshield.ai'
     }
+  },
+
   apiLogging: {
     enabled: process.env.API_LOGGING_ENABLED === 'true' || process.env.NODE_ENV !== 'test',
     logRequestBody: process.env.API_LOGGING_REQUEST_BODY !== 'false',
