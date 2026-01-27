@@ -8,6 +8,7 @@ const config = require('./config');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
+const createSwaggerMiddleware = require('./middlewares/swaggerDynamic');
 const apiLogger = require('./middlewares/apiLogger');
 
 const app = express();
@@ -44,6 +45,11 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+// Serve dynamic Swagger YAML files with environment-specific server URL
+app.get('/docs/swagger.yaml', createSwaggerMiddleware('swagger.yaml'));
+app.get('/docs/swagger-merchant.yaml', createSwaggerMiddleware('swagger-merchant.yaml'));
+
+// Serve API documentation (static files)
 // API request/response logging to database
 app.use(apiLogger({
   enabled: config.apiLogging.enabled,

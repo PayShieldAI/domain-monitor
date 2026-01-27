@@ -5,50 +5,44 @@ info:
     Production-grade microservice for monitoring merchant web presence.
 
     ## Features
-    - User authentication with JWT tokens and API keys
+    - API key-based authentication for secure machine-to-machine communication
     - Domain monitoring with configurable check frequencies (7, 30, or 90 days)
     - Bulk operations support
     - Multi-provider architecture (TrueBiz primary)
-    - Machine-to-machine authentication via API keys
     - Real-time updates via SSE (coming soon)
     - Webhook notifications
 
     ## Authentication
 
-    ### JWT Bearer Token (User Authentication)
-    Most endpoints require a Bearer token in the Authorization header:
-    ```
-    Authorization: Bearer <your_access_token>
-    ```
-    Get your token by calling `/api/v1/auth/login`.
-
-    ### API Key (Machine-to-Machine Authentication)
-    External systems can authenticate using API keys:
+    ### API Key Authentication
+    All endpoints require API key authentication via the `X-API-Key` header:
     ```
     X-API-Key: dmk_your_api_key_here
     ```
+
     API keys provide system-level access and are managed by superadmins.
     See the API Keys section for management endpoints.
 
     ## Quick Start Examples
 
-    ### Example 1: User Login and Access
+    ### Example 1: Accessing Protected Endpoints
     ```bash
-    # Login to get JWT token
-    curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/auth/login \
-      -H "Content-Type: application/json" \
-      -d '{"email": "user@example.com", "password": "YourPassword123"}'
-
-    # Use the token to access protected endpoints
-    curl -X GET https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
-      -H "Authorization: Bearer <your_token>"
-    ```
-
-    ### Example 2: API Key for External Systems
-    ```bash
-    # External system authenticating with API key
+    # Access domains with API key
     curl -X GET https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
       -H "X-API-Key: dmk_your_api_key_here"
+    ```
+
+    ### Example 2: Creating a Domain
+    ```bash
+    # Create a new domain for monitoring
+    curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
+      -H "X-API-Key: dmk_your_api_key_here" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "domain": "example.com",
+        "name": "Example Domain",
+        "checkFrequency": "7"
+      }'
     ```
 
     ### Example 3: Generate User Token via API Key
@@ -70,9 +64,9 @@ info:
 servers:
   - url: https://dev-domainmonitor.ipo-servers.net
     description: Development server
-  - url: https://uat-domainmonitor.ipo-servers.net
+  - url: https://uat-monitor.payshield.ai
     description: UAT server
-  - url: https://domainmonitor.ipo-servers.net
+  - url: https://monitor.payshield.ai
     description: Production server
   - url: https://justin-dev-domainmonitor.ipo-servers.net
     description: Justin Development server
@@ -97,15 +91,11 @@ tags:
 
 components:
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
-      description: API key for machine-to-machine authentication
+      description: API key for machine-to-machine authentication. Use format 'dmk_your_api_key_here'
 
   schemas:
     Error:
@@ -660,7 +650,7 @@ paths:
         - Authentication
       summary: Logout user
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
       responses:
         '200':
           description: Logout successful
@@ -735,7 +725,6 @@ paths:
         - Authentication
       summary: Change password
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -779,7 +768,6 @@ paths:
         - JWT Bearer token (requires superadmin role)
         - API Key via X-API-Key header (system-level access)
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -865,7 +853,7 @@ paths:
         - Users
       summary: Get current user profile
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
       responses:
         '200':
           description: User profile
@@ -884,7 +872,6 @@ paths:
         - Users
       summary: Update current user profile
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -921,7 +908,6 @@ paths:
         - Domains
       summary: List domains
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: page
@@ -1023,7 +1009,6 @@ paths:
 
         If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -1133,7 +1118,6 @@ paths:
 
         Superadmins and resellers can optionally specify a `userId` to add domains on behalf of a merchant user.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -1277,7 +1261,6 @@ paths:
         - Domains
       summary: Retrieve multiple domains by IDs
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -1318,7 +1301,6 @@ paths:
         - Domains
       summary: Get domain by ID
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1346,7 +1328,6 @@ paths:
         - Domains
       summary: Get domain with full raw data
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1373,14 +1354,13 @@ paths:
                           providerResponseId:
                             type: string
 
-  
+ 
   /api/v1/domains/{id}/stop:
     patch:
       tags:
         - Domains
       summary: Stop monitoring domain
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1408,7 +1388,6 @@ paths:
         - Domains
       summary: Start monitoring domain
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1436,7 +1415,6 @@ paths:
         - Domains
       summary: Stop monitoring multiple domains
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -1479,7 +1457,6 @@ paths:
         - Domains
       summary: Start monitoring multiple domains
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -1526,8 +1503,7 @@ paths:
 
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to list webhooks for other users.
-      security:
-        - BearerAuth: []
+      security:        
         - ApiKeyAuth: []
       parameters:
         - name: userId
@@ -1575,7 +1551,6 @@ paths:
         Superadmins, resellers, and API key holders can specify a `userId` to create webhooks for other users.
         Merchants can only create webhooks for themselves.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -1659,7 +1634,6 @@ paths:
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to view webhooks for other users.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1703,7 +1677,6 @@ paths:
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` to update webhooks for other users.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1776,7 +1749,6 @@ paths:
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to delete webhooks for other users.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1820,7 +1792,6 @@ paths:
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` to test webhooks for other users.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1882,7 +1853,6 @@ paths:
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` to regenerate secrets for other users' webhooks.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -1937,7 +1907,6 @@ paths:
         **Admin Access:**
         Superadmins, resellers, and API key holders can specify a `userId` query parameter to view delivery logs for other users' webhooks.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2213,7 +2182,6 @@ paths:
       summary: List all providers
       description: Get all providers with their configuration (API keys masked). Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: enabled
@@ -2246,7 +2214,6 @@ paths:
       summary: Create a new provider
       description: Create a new provider with encrypted API key. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -2325,7 +2292,6 @@ paths:
         - Providers
       summary: Get provider by ID
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2360,7 +2326,6 @@ paths:
         - `apiKey` and `webhookSecret` will be encrypted before storage
         - Masked versions are returned in responses
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2435,7 +2400,6 @@ paths:
         - Providers
       summary: Delete provider
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2465,7 +2429,6 @@ paths:
         - Providers
       summary: Get provider by name
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: name
@@ -2496,7 +2459,6 @@ paths:
         - Providers
       summary: Enable provider
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2526,7 +2488,6 @@ paths:
         - Providers
       summary: Disable provider
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2556,7 +2517,6 @@ paths:
         - Providers
       summary: Update provider priority
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2600,7 +2560,7 @@ paths:
       summary: Reload providers from database
       description: Reloads all providers from database into memory. Use after manual database changes.
       security:
-        - BearerAuth: []
+        - ApiKeyAuth: []
       responses:
         '200':
           description: Providers reloaded
@@ -2632,7 +2592,6 @@ paths:
       summary: Check provider health
       description: Check if provider API is reachable and responding
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2673,7 +2632,6 @@ paths:
       summary: List all API keys
       description: Retrieve all API keys with metadata. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: includeRevoked
@@ -2710,7 +2668,6 @@ paths:
         The API key is returned only once and cannot be retrieved again.
         Store it securely. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       requestBody:
         required: true
@@ -2801,7 +2758,6 @@ paths:
       summary: Get API key details
       description: Retrieve details of a specific API key. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2835,7 +2791,6 @@ paths:
       summary: Update API key metadata
       description: Update name, description, permissions, or expiration. Cannot update revoked keys. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2893,7 +2848,6 @@ paths:
       summary: Delete API key (hard delete)
       description: Permanently delete an API key from the database. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
@@ -2929,7 +2883,6 @@ paths:
         Revoke an API key, making it unusable without permanently deleting it.
         Revoked keys remain in the database for audit purposes. Requires superadmin role.
       security:
-        - BearerAuth: []
         - ApiKeyAuth: []
       parameters:
         - name: id
