@@ -711,6 +711,69 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
+  /api/v1/user-webhooks/deliveries:
+    get:
+      tags:
+        - User Webhooks
+      summary: List all delivery logs
+      description: |
+        Get all webhook delivery logs for your account with optional filters.
+
+        Returns delivery logs across all your webhook endpoints.
+      operationId: listAllDeliveries
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, success, failed, retrying]
+          description: Filter by delivery status
+      responses:
+        '200':
+          description: Delivery logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Delivery logs retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/WebhookDelivery'
+                        - type: object
+                          properties:
+                            endpointId:
+                              type: string
+                              format: uuid
+                            endpointUrl:
+                              type: string
+                              format: uri
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
 # ==========================================
 # COMPONENTS
 # ==========================================
