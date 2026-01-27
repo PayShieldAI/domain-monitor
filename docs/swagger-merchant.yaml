@@ -54,7 +54,7 @@ info:
 servers:
   - url: https://dev-domainmonitor.ipo-servers.net
     description: Development server
-  - url: https://api.domainmonitor.com
+  - url: https://monitor.payshield.ai
     description: Production server
 
 tags:

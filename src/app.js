@@ -7,6 +7,7 @@ const path = require('path');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
+const createSwaggerMiddleware = require('./middlewares/swaggerDynamic');
 
 const app = express();
 
@@ -42,7 +43,11 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve API documentation
+// Serve dynamic Swagger YAML files with environment-specific server URL
+app.get('/docs/swagger.yaml', createSwaggerMiddleware('swagger.yaml'));
+app.get('/docs/swagger-merchant.yaml', createSwaggerMiddleware('swagger-merchant.yaml'));
+
+// Serve API documentation (static files)
 app.use('/docs', express.static(path.join(__dirname, '../docs')));
 
 // Routes

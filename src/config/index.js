@@ -22,6 +22,14 @@ const config = {
     level: process.env.LOG_LEVEL || 'info'
   },
 
+  api: {
+    baseUrls: {
+      development: process.env.API_BASE_URL_DEV || 'https://dev-domainmonitor.ipo-servers.net',
+      uat: process.env.API_BASE_URL_UAT || 'https://uat-monitor.payshield.ai',
+      production: process.env.API_BASE_URL_PROD || 'https://monitor.payshield.ai'
+    }
+  },
+
   isDevelopment() {
     return this.env === 'development';
   },
@@ -32,6 +40,10 @@ const config = {
 
   isUAT() {
     return this.env === 'uat';
+  },
+
+  getApiBaseUrl() {
+    return this.api.baseUrls[this.env] || this.api.baseUrls.development;
   }
 };
 
