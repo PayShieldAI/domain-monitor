@@ -194,6 +194,101 @@ const userWebhookRepository = {
     return results.map(r => this.parseDeliveryLog(r));
   },
 
+  async findAllDeliveryLogs(options = {}) {
+    const { userId, resellerId, page = 1, limit = 100, status, eventType } = options;
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 100;
+    const offset = (pageNum - 1) * limitNum;
+
+    // If resellerId is provided, join with reseller_merchant_relationships to filter by assigned merchants
+    const needsResellerJoin = resellerId && !userId;
+
+    let sql, countSql;
+
+    if (needsResellerJoin) {
+      sql = `
+        SELECT dl.*, uw.user_id, uw.url as endpoint_url
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        INNER JOIN reseller_merchant_relationships rmr ON uw.user_id = rmr.merchant_id
+        WHERE rmr.reseller_id = ?
+      `;
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        INNER JOIN reseller_merchant_relationships rmr ON uw.user_id = rmr.merchant_id
+        WHERE rmr.reseller_id = ?
+      `;
+    } else {
+      sql = `
+        SELECT dl.*, uw.user_id, uw.url as endpoint_url
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        WHERE 1=1
+      `;
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        WHERE 1=1
+      `;
+    }
+
+    const params = [];
+    const countParams = [];
+
+    if (needsResellerJoin) {
+      params.push(resellerId);
+      countParams.push(resellerId);
+    }
+
+    if (userId) {
+      sql += ' AND uw.user_id = ?';
+      countSql += ' AND uw.user_id = ?';
+      params.push(userId);
+      countParams.push(userId);
+
+      // If reseller specified a userId, verify merchant belongs to reseller
+      if (resellerId) {
+        sql += ' AND EXISTS (SELECT 1 FROM reseller_merchant_relationships WHERE reseller_id = ? AND merchant_id = uw.user_id)';
+        countSql += ' AND EXISTS (SELECT 1 FROM reseller_merchant_relationships WHERE reseller_id = ? AND merchant_id = uw.user_id)';
+        params.push(resellerId);
+        countParams.push(resellerId);
+      }
+    }
+
+    if (status) {
+      sql += ' AND dl.status = ?';
+      countSql += ' AND dl.status = ?';
+      params.push(status);
+      countParams.push(status);
+    }
+
+    if (eventType) {
+      sql += ' AND dl.event_type = ?';
+      countSql += ' AND dl.event_type = ?';
+      params.push(eventType);
+      countParams.push(eventType);
+    }
+
+    sql += ' ORDER BY dl.created_at DESC LIMIT ? OFFSET ?';
+    params.push(limitNum, offset);
+
+    const [results, countResult] = await Promise.all([
+      query(sql, params),
+      queryOne(countSql, countParams)
+    ]);
+
+    return {
+      logs: results.map(r => this.parseDeliveryLog(r)),
+      total: countResult.total,
+      page: pageNum,
+      limit: limitNum
+    };
+  },
+
   async findPendingRetries() {
     const sql = `
       SELECT * FROM user_webhook_delivery_logs

@@ -282,6 +282,54 @@ const userWebhookController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  async listAllDeliveries(req, res, next) {
+    try {
+      const { userId, page, limit, status, eventType } = req.query;
+
+      const userContext = getUserContext(req);
+      if (!userContext) {
+        return next(new Error('User context not found'));
+      }
+
+      let targetUserId;
+      let resellerId = null;
+
+      if (userContext.isApiKey || isSuperadmin(userContext)) {
+        // Superadmin/API key can query all or filter by any userId
+        targetUserId = userId || null;
+      } else if (isReseller(userContext)) {
+        // Reseller can only see deliveries for their assigned merchants
+        if (userId) {
+          // Reseller specified a userId - will be validated in service
+          targetUserId = userId;
+          resellerId = userContext.id;
+        } else {
+          // No userId specified - show all merchants' deliveries for this reseller
+          resellerId = userContext.id;
+        }
+      } else {
+        // Merchant can only see their own deliveries
+        targetUserId = userContext.id;
+      }
+
+      const result = await userWebhookService.listAllDeliveries({
+        userId: targetUserId,
+        resellerId,
+        page,
+        limit,
+        status,
+        eventType
+      });
+
+      res.json({
+        message: 'Delivery logs retrieved successfully',
+        ...result
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 };
 

@@ -283,6 +283,48 @@ const userWebhookService = {
       nextRetryAt: log.next_retry_at,
       createdAt: log.created_at
     }));
+  },
+
+  /**
+   * List all delivery logs with optional filters
+   */
+  async listAllDeliveries(options = {}) {
+    const { userId, resellerId, page, limit, status, eventType } = options;
+
+    const result = await userWebhookRepository.findAllDeliveryLogs({
+      userId,
+      resellerId,
+      page,
+      limit,
+      status,
+      eventType
+    });
+
+    return {
+      data: result.logs.map(log => ({
+        id: log.id,
+        endpointId: log.endpoint_id,
+        endpointUrl: log.endpoint_url,
+        userId: log.user_id,
+        eventType: log.event_type,
+        domainId: log.domain_id,
+        attemptNumber: log.attempt_number,
+        status: log.status,
+        responseStatus: log.response_status,
+        errorMessage: log.error_message,
+        durationMs: log.duration_ms,
+        sentAt: log.sent_at,
+        completedAt: log.completed_at,
+        nextRetryAt: log.next_retry_at,
+        createdAt: log.created_at
+      })),
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: Math.ceil(result.total / result.limit)
+      }
+    };
   }
 };
 

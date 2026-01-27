@@ -93,8 +93,35 @@ const webhookEndpointIdSchema = Joi.object({
     })
 });
 
+const listDeliveriesQuerySchema = Joi.object({
+  userId: Joi.string()
+    .uuid()
+    .optional()
+    .messages({
+      'string.guid': 'Invalid user ID format'
+    }),
+  page: Joi.number()
+    .integer()
+    .min(1)
+    .optional()
+    .default(1),
+  limit: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .optional()
+    .default(100),
+  status: Joi.string()
+    .valid('pending', 'success', 'failed', 'retrying')
+    .optional()
+  // eventType: Joi.string()
+  //   .valid(...validEvents)
+  //   .optional()
+});
+
 module.exports = {
   createWebhookEndpointSchema,
   updateWebhookEndpointSchema,
-  webhookEndpointIdSchema
+  webhookEndpointIdSchema,
+  listDeliveriesQuerySchema
 };
