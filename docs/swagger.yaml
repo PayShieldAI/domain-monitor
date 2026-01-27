@@ -86,6 +86,8 @@ tags:
     description: Domain monitoring operations
   - name: User Webhooks
     description: Register webhooks to receive domain event notifications
+  - name: Webhook Events
+    description: View incoming webhook events from providers (Superadmin/API Key only)
   - name: Providers
     description: Provider management (Superadmin only)
   - name: API Keys
@@ -412,6 +414,52 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    WebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          example: truebiz
+          description: Provider name that sent the webhook
+        event_type:
+          type: string
+          example: domain.verified
+          description: Event type from the provider
+        domain_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated domain ID (if matched)
+        payload:
+          type: object
+          description: Raw webhook payload from provider
+        signature:
+          type: string
+          nullable: true
+          description: Webhook signature for verification
+        verified:
+          type: boolean
+          description: Whether signature was verified
+        processed:
+          type: boolean
+          description: Whether webhook was successfully processed
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When webhook was processed
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if processing failed
+        received_at:
+          type: string
+          format: date-time
+          description: When webhook was received
 
 paths:
   /health:
@@ -1835,6 +1883,157 @@ paths:
           description: Webhook endpoint not found
         '401':
           description: Unauthorized
+
+  /api/v1/webhooks:
+    get:
+      tags:
+        - Webhook Events
+      summary: List provider webhook events
+      description: |
+        Get all webhook events received from providers with filtering capabilities.
+
+        This endpoint shows incoming webhooks from external providers (like TrueBiz), not outgoing
+        webhooks to user endpoints. Use this for debugging provider integrations and monitoring
+        webhook delivery status.
+
+        **Requires:** Superadmin role or API Key authentication
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+          description: Filter by provider name (e.g., "truebiz")
+          example: truebiz
+        - name: domainId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by associated domain ID
+        - name: status
+          in: query
+          schema:
+            type: boolean
+          description: Filter by processing status (true = processed, false = failed/pending)
+          example: true
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter webhooks received from this date (ISO 8601 format)
+          example: "2026-01-01T00:00:00Z"
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter webhooks received until this date (ISO 8601 format)
+          example: "2026-01-27T23:59:59Z"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Pagination offset
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (alternative to offset)
+      responses:
+        '200':
+          description: List of webhook events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookEvent'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        description: Total number of matching webhooks
+                        example: 150
+                      limit:
+                        type: integer
+                        example: 20
+                      offset:
+                        type: integer
+                        example: 0
+                      page:
+                        type: integer
+                        example: 1
+                      totalPages:
+                        type: integer
+                        example: 8
+              examples:
+                filtered:
+                  summary: Filtered by provider
+                  value:
+                    success: true
+                    data:
+                      - id: "123e4567-e89b-12d3-a456-426614174000"
+                        provider: "truebiz"
+                        event_type: "domain.verified"
+                        domain_id: "987e6543-e21b-43d3-a456-426614174999"
+                        payload:
+                          type: "domain.verified"
+                          data:
+                            domain: "example.com"
+                        signature: "sha256=abc123..."
+                        verified: true
+                        processed: true
+                        processed_at: "2026-01-27T10:00:00Z"
+                        error_message: null
+                        received_at: "2026-01-27T09:59:00Z"
+                    pagination:
+                      total: 45
+                      limit: 20
+                      offset: 0
+                      page: 1
+                      totalPages: 3
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Superadmin or API Key access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error - Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/v1/admin/providers:
     get:
