@@ -137,7 +137,7 @@ const webhookRepository = {
       }
       return e;
     });
-  }
+  },
 
    async findWithFilters(filters = {}) {
     const {
@@ -183,8 +183,21 @@ const webhookRepository = {
 
     const events = await query(sql, params);
     return events.map(e => {
-      if (e.payload) {
-        e.payload = JSON.parse(e.payload);
+      // Parse payload if it's a string
+      if (e.payload && typeof e.payload === 'string') {
+        try {
+          e.payload = JSON.parse(e.payload);
+        } catch (err) {
+          // Already parsed or invalid JSON, leave as is
+        }
+      }
+      // Parse alert_response if it's a string
+      if (e.alert_response && typeof e.alert_response === 'string') {
+        try {
+          e.alert_response = JSON.parse(e.alert_response);
+        } catch (err) {
+          // Already parsed or invalid JSON, leave as is
+        }
       }
       return e;
     });
