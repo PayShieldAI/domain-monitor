@@ -5,13 +5,17 @@ const validate = require('../middlewares/validate');
 const {
   createWebhookEndpointSchema,
   updateWebhookEndpointSchema,
-  webhookEndpointIdSchema
+  webhookEndpointIdSchema,
+  listDeliveriesQuerySchema
 } = require('../validators/userWebhookSchemas');
 
 const router = express.Router();
 
 // All routes require authentication (JWT or API key)
 router.use(authenticateFlexible);
+
+// List all delivery logs (with optional userId filter)
+router.get('/deliveries', validate(listDeliveriesQuerySchema, 'query'), userWebhookController.listAllDeliveries);
 
 // Create webhook endpoint
 router.post('/', validate(createWebhookEndpointSchema), userWebhookController.createEndpoint);

@@ -5,7 +5,7 @@ const userWebhookRepository = {
   async create({ userId, url, events, secret, description }) {
     const id = uuid();
     const sql = `
-      INSERT INTO webhooks (
+      INSERT INTO user_webhooks (
         id, user_id, url, events, secret, description, enabled, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, TRUE, NOW())
     `;
@@ -21,14 +21,14 @@ const userWebhookRepository = {
   },
 
   async findById(id) {
-    const sql = 'SELECT * FROM webhooks WHERE id = ?';
+    const sql = 'SELECT * FROM user_webhooks WHERE id = ?';
     const result = await queryOne(sql, [id]);
     return this.parseWebhookEndpoint(result);
   },
 
   async findByUserId(userId) {
     const sql = `
-      SELECT * FROM webhooks
+      SELECT * FROM user_webhooks
       WHERE user_id = ?
       ORDER BY created_at DESC
     `;
@@ -38,7 +38,7 @@ const userWebhookRepository = {
 
   async findActiveByUserIdAndEvent(userId, eventType) {
     const sql = `
-      SELECT * FROM webhooks
+      SELECT * FROM user_webhooks
       WHERE user_id = ?
         AND enabled = TRUE
         AND (events IS NULL OR JSON_CONTAINS(events, ?, '$'))
@@ -73,7 +73,7 @@ const userWebhookRepository = {
     fields.push('updated_at = NOW()');
     values.push(id);
 
-    const sql = `UPDATE webhooks SET ${fields.join(', ')} WHERE id = ?`;
+    const sql = `UPDATE user_webhooks SET ${fields.join(', ')} WHERE id = ?`;
     await query(sql, values);
     return this.findById(id);
   },
@@ -103,17 +103,17 @@ const userWebhookRepository = {
 
     values.push(id);
 
-    const sql = `UPDATE webhooks SET ${fields.join(', ')} WHERE id = ?`;
+    const sql = `UPDATE user_webhooks SET ${fields.join(', ')} WHERE id = ?`;
     await query(sql, values);
   },
 
   async delete(id) {
-    const sql = 'DELETE FROM webhooks WHERE id = ?';
+    const sql = 'DELETE FROM user_webhooks WHERE id = ?';
     await query(sql, [id]);
   },
 
   async regenerateSecret(id, newSecret) {
-    const sql = 'UPDATE webhooks SET secret = ?, updated_at = NOW() WHERE id = ?';
+    const sql = 'UPDATE user_webhooks SET secret = ?, updated_at = NOW() WHERE id = ?';
     await query(sql, [newSecret, id]);
     return this.findById(id);
   },
@@ -122,10 +122,10 @@ const userWebhookRepository = {
   async createDeliveryLog({ endpointId, eventType, domainId, attemptNumber, requestBody }) {
     const id = uuid();
     const sql = `
-      INSERT INTO webhook_delivery_logs (
-        id, webhook_id, event_type, domain_id, attempt_number,
-        status, request_body, payload, created_at
-      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NOW())
+      INSERT INTO user_webhook_delivery_logs (
+        id, endpoint_id, event_type, domain_id, attempt_number,
+        status, request_body, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, NOW())
     `;
     await query(sql, [
       id,
@@ -133,8 +133,7 @@ const userWebhookRepository = {
       eventType,
       domainId || null,
       attemptNumber,
-      JSON.stringify(requestBody),
-      JSON.stringify(requestBody) // payload is the same as request_body
+      JSON.stringify(requestBody)
     ]);
     return id;
   },
@@ -180,14 +179,14 @@ const userWebhookRepository = {
 
     values.push(id);
 
-    const sql = `UPDATE webhook_delivery_logs SET ${fields.join(', ')} WHERE id = ?`;
+    const sql = `UPDATE user_webhook_delivery_logs SET ${fields.join(', ')} WHERE id = ?`;
     await query(sql, values);
   },
 
   async findDeliveryLogsByEndpoint(endpointId, limit = 100) {
     const sql = `
-      SELECT * FROM webhook_delivery_logs
-      WHERE webhook_id = ?
+      SELECT * FROM user_webhook_delivery_logs
+      WHERE endpoint_id = ?
       ORDER BY created_at DESC
       LIMIT ?
     `;
@@ -195,9 +194,104 @@ const userWebhookRepository = {
     return results.map(r => this.parseDeliveryLog(r));
   },
 
+  async findAllDeliveryLogs(options = {}) {
+    const { userId, resellerId, page = 1, limit = 100, status, eventType } = options;
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 100;
+    const offset = (pageNum - 1) * limitNum;
+
+    // If resellerId is provided, join with reseller_merchant_relationships to filter by assigned merchants
+    const needsResellerJoin = resellerId && !userId;
+
+    let sql, countSql;
+
+    if (needsResellerJoin) {
+      sql = `
+        SELECT dl.*, uw.user_id, uw.url as endpoint_url
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        INNER JOIN reseller_merchant_relationships rmr ON uw.user_id = rmr.merchant_id
+        WHERE rmr.reseller_id = ?
+      `;
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        INNER JOIN reseller_merchant_relationships rmr ON uw.user_id = rmr.merchant_id
+        WHERE rmr.reseller_id = ?
+      `;
+    } else {
+      sql = `
+        SELECT dl.*, uw.user_id, uw.url as endpoint_url
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        WHERE 1=1
+      `;
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM user_webhook_delivery_logs dl
+        INNER JOIN user_webhooks uw ON dl.endpoint_id = uw.id
+        WHERE 1=1
+      `;
+    }
+
+    const params = [];
+    const countParams = [];
+
+    if (needsResellerJoin) {
+      params.push(resellerId);
+      countParams.push(resellerId);
+    }
+
+    if (userId) {
+      sql += ' AND uw.user_id = ?';
+      countSql += ' AND uw.user_id = ?';
+      params.push(userId);
+      countParams.push(userId);
+
+      // If reseller specified a userId, verify merchant belongs to reseller
+      if (resellerId) {
+        sql += ' AND EXISTS (SELECT 1 FROM reseller_merchant_relationships WHERE reseller_id = ? AND merchant_id = uw.user_id)';
+        countSql += ' AND EXISTS (SELECT 1 FROM reseller_merchant_relationships WHERE reseller_id = ? AND merchant_id = uw.user_id)';
+        params.push(resellerId);
+        countParams.push(resellerId);
+      }
+    }
+
+    if (status) {
+      sql += ' AND dl.status = ?';
+      countSql += ' AND dl.status = ?';
+      params.push(status);
+      countParams.push(status);
+    }
+
+    if (eventType) {
+      sql += ' AND dl.event_type = ?';
+      countSql += ' AND dl.event_type = ?';
+      params.push(eventType);
+      countParams.push(eventType);
+    }
+
+    sql += ' ORDER BY dl.created_at DESC LIMIT ? OFFSET ?';
+    params.push(limitNum, offset);
+
+    const [results, countResult] = await Promise.all([
+      query(sql, params),
+      queryOne(countSql, countParams)
+    ]);
+
+    return {
+      logs: results.map(r => this.parseDeliveryLog(r)),
+      total: countResult.total,
+      page: pageNum,
+      limit: limitNum
+    };
+  },
+
   async findPendingRetries() {
     const sql = `
-      SELECT * FROM webhook_delivery_logs
+      SELECT * FROM user_webhook_delivery_logs
       WHERE status = 'retrying'
         AND next_retry_at <= NOW()
       ORDER BY next_retry_at ASC

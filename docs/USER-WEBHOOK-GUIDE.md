@@ -26,7 +26,7 @@ curl -X POST https://your-domain.com/api/v1/user-webhooks \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://your-app.com/webhooks/domain-monitor",
-    "events": ["domain.verified", "domain.failed"],
+    "events": ["business-closed", "sentiment"],
     "description": "Production webhook endpoint"
   }'
 ```
@@ -50,7 +50,7 @@ curl -X POST https://your-domain.com/api/v1/user-webhooks \
   "data": {
     "id": "webhook-uuid",
     "url": "https://your-app.com/webhooks/domain-monitor",
-    "events": ["domain.verified", "domain.failed"],
+    "events": ["business-closed", "sentiment"],
     "secret": "abc123...",
     "enabled": true,
     "createdAt": "2026-01-22T10:30:00.000Z"
@@ -95,10 +95,10 @@ app.post('/webhooks/domain-monitor',
     console.log(`Received ${event} for domain ${data.domain}`);
 
     switch (event) {
-      case 'domain.verified':
+      case 'business-closed':
         // Handle domain verification
         break;
-      case 'domain.failed':
+      case 'sentiment':
         // Handle domain failure
         break;
       // Handle other events...
@@ -128,11 +128,11 @@ Subscribe to one or more of these events, or omit the `events` field entirely to
 | Event | Description | Triggered When |
 |-------|-------------|----------------|
 | `domain.created` | Domain registered | User adds a new domain |
-| `domain.updated` | Domain modified | User updates domain settings |
+| `business-profile` | Domain modified | User updates domain settings |
 | `domain.deleted` | Domain removed | User deletes a domain |
-| `domain.verified` | Domain verification successful | Provider confirms domain ownership |
-| `domain.failed` | Domain verification failed | Provider cannot verify domain |
-| `domain.check.completed` | Periodic check completed | Scheduled domain check finishes |
+| `business-closed` | Domain verification successful | Provider confirms domain ownership |
+| `sentiment` | Domain verification failed | Provider cannot verify domain |
+| `website` | Periodic check completed | Scheduled domain check finishes |
 
 ---
 
@@ -142,14 +142,14 @@ All webhooks follow this structure:
 
 ```json
 {
-  "event": "domain.verified",
+  "event": "business-closed",
   "timestamp": "2026-01-22T10:30:00.000Z",
   "data": {
     "domainId": "domain-uuid",
     "domain": "example.com",
     "status": "active",
     "provider": "truebiz",
-    "providerEvent": "domain.verified",
+    "providerEvent": "business-closed",
     "providerData": {
       // Provider-specific data
     }
@@ -165,7 +165,7 @@ Every webhook request includes these headers:
 |--------|-------------|---------|
 | `Content-Type` | Always `application/json` | `application/json` |
 | `X-Webhook-Signature` | HMAC-SHA256 signature | `sha256=abc123...` |
-| `X-Webhook-Event` | Event type | `domain.verified` |
+| `X-Webhook-Event` | Event type | `business-closed` |
 | `X-Webhook-Delivery-Id` | Unique delivery ID (for deduplication) | `uuid` |
 | `User-Agent` | Identifies the webhook sender | `DomainMonitor-Webhook/1.0` |
 
@@ -241,7 +241,7 @@ curl -X PATCH https://your-domain.com/api/v1/user-webhooks/{id} \
   -H "Authorization: Bearer <your_token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "events": ["domain.verified", "domain.failed", "domain.check.completed"],
+    "events": ["business-closed", "sentiment", "website"],
     "enabled": true
   }'
 ```
@@ -280,7 +280,7 @@ curl -X GET https://your-domain.com/api/v1/user-webhooks/{id}/deliveries?limit=5
   "data": [
     {
       "id": "log-uuid",
-      "eventType": "domain.verified",
+      "eventType": "business-closed",
       "domainId": "domain-uuid",
       "attemptNumber": 1,
       "status": "success",
@@ -337,10 +337,10 @@ async function processWebhook(payload) {
   const { event, data } = payload;
 
   switch (event) {
-    case 'domain.verified':
+    case 'business-closed':
       await notifyUserDomainVerified(data);
       break;
-    case 'domain.failed':
+    case 'sentiment':
       await alertUserDomainFailed(data);
       break;
   }
@@ -378,9 +378,9 @@ def handle_webhook():
     data = payload['data']
 
     # Process webhook (async recommended)
-    if event == 'domain.verified':
+    if event == 'business-closed':
         notify_user_domain_verified(data)
-    elif event == 'domain.failed':
+    elif event == 'sentiment':
         alert_user_domain_failed(data)
 
     return jsonify({'received': True})

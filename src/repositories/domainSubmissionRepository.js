@@ -12,6 +12,7 @@ const domainSubmissionRepository = {
     const {
       domainId,
       // Submitted data
+      submittedDomainName,
       submittedBusinessName,
       submittedDescription,
       submittedWebsite,
@@ -23,28 +24,23 @@ const domainSubmissionRepository = {
       country,
       submittedEmail,
       submittedPhone,
-      submittedFullName,
-      // Provider data
-      providerBusinessName,
-      providerIndustry,
-      providerBusinessType,
-      providerFoundedYear
+      submittedFullName
     } = data;
 
     const sql = `
       INSERT INTO domain_submissions (
-        id, domain_id,
+        id, domain_id, submitted_domain_name,
         submitted_business_name, submitted_description, submitted_website,
         address_line_1, address_line_2, city, state_province, postal_code, country,
         submitted_email, submitted_phone, submitted_full_name,
-        provider_business_name, provider_industry, provider_business_type, provider_founded_year,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
 
     await query(sql, [
       id, domainId,
+      submittedDomainName || null,
       submittedBusinessName || null,
       submittedDescription || null,
       submittedWebsite || null,
@@ -56,11 +52,7 @@ const domainSubmissionRepository = {
       country || null,
       submittedEmail || null,
       submittedPhone || null,
-      submittedFullName || null,
-      providerBusinessName || null,
-      providerIndustry || null,
-      providerBusinessType || null,
-      providerFoundedYear || null
+      submittedFullName || null
     ]);
 
     return this.findById(id);
@@ -84,42 +76,6 @@ const domainSubmissionRepository = {
   async findByDomainId(domainId) {
     const sql = 'SELECT * FROM domain_submissions WHERE domain_id = ? ORDER BY created_at DESC LIMIT 1';
     return queryOne(sql, [domainId]);
-  },
-
-  /**
-   * Update submission with provider data
-   * @param {string} domainId - Domain ID
-   * @param {Object} providerData - Provider response data
-   * @returns {Promise<Object>} Updated submission
-   */
-  async updateProviderData(domainId, providerData) {
-    const {
-      name: providerBusinessName,
-      industry: providerIndustry,
-      businessType: providerBusinessType,
-      foundedYear: providerFoundedYear
-    } = providerData;
-
-    const sql = `
-      UPDATE domain_submissions
-      SET
-        provider_business_name = ?,
-        provider_industry = ?,
-        provider_business_type = ?,
-        provider_founded_year = ?,
-        updated_at = NOW()
-      WHERE domain_id = ?
-    `;
-
-    await query(sql, [
-      providerBusinessName || null,
-      providerIndustry || null,
-      providerBusinessType || null,
-      providerFoundedYear || null,
-      domainId
-    ]);
-
-    return this.findByDomainId(domainId);
   },
 
   /**

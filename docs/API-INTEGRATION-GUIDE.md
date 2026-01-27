@@ -649,36 +649,674 @@ curl -X PATCH https://dev-domainmonitor.ipo-servers.net/api/v1/domains/bulk/star
 
 ---
 
-## Check History
+## Webhooks
 
-View the history of checks for a domain:
+Webhooks allow you to receive real-time notifications when domain events occur, eliminating the need for polling. Instead of repeatedly checking for updates, the API will push events to your registered endpoint.
+
+### Benefits of Webhooks
+
+- **Real-time notifications:** Instant updates when domain checks complete
+- **Reduced API calls:** No need to poll for results
+- **Efficient:** Handle multiple domains without constant monitoring
+- **Reliable:** Automatic retries on delivery failures
+
+### Webhook Events
+
+The following events can trigger webhook notifications:
+
+| Event Type | Description |
+|------------|-------------|
+| `domain.created` | New domain registered for monitoring |
+| `business-profile` | Domain business profile updated |
+| `domain.deleted` | Domain removed from monitoring |
+| `business-closed` | Business appears to be closed |
+| `sentiment` | Negative sentiment detected |
+| `website` | Website check completed |
+
+### Registering a Webhook Endpoint
+
+Create a webhook endpoint to start receiving notifications:
 
 ```bash
-curl -X GET "https://dev-domainmonitor.ipo-servers.net/api/v1/domains/{id}/history?limit=10" \
+curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhooks/domain-monitor",
+    "events": ["business-closed", "sentiment", "website"],
+    "description": "Production webhook endpoint"
+  }'
+```
+
+**Request Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | HTTPS URL to receive webhook events (max 2048 chars) |
+| `events` | array | No | Specific event types to subscribe to. Omit or set to `null` to receive all events |
+| `description` | string | No | Human-readable description (max 500 chars) |
+
+**Response:**
+```json
+{
+  "message": "Webhook endpoint created successfully",
+  "warning": "Store the secret securely. It will not be shown again.",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "url": "https://your-app.com/webhooks/domain-monitor",
+    "events": ["business-closed", "sentiment", "website"],
+    "description": "Production webhook endpoint",
+    "enabled": true,
+    "secret": "whsec_abc123def456...",
+    "createdAt": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+{% hint style="warning" %}
+**Important:** The webhook signing secret is only shown once during creation. Store it securely - you'll need it to verify webhook signatures.
+{% endhint %}
+
+### Managing Webhook Endpoints
+
+#### List All Webhooks
+
+```bash
+curl -X GET https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Get Webhook Details
+
+```bash
+curl -X GET https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/{id} \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Update Webhook
+
+```bash
+curl -X PATCH https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/{id} \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhooks/new-endpoint",
+    "events": null,
+    "enabled": true
+  }'
+```
+
+#### Delete Webhook
+
+```bash
+curl -X DELETE https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/{id} \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Test Webhook
+
+Send a test webhook to verify your endpoint is working:
+
+```bash
+curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/{id}/test \
   -H "Authorization: Bearer <token>"
 ```
 
 **Response:**
 ```json
 {
+  "message": "Test webhook sent successfully",
+  "data": {
+    "status": "success",
+    "responseStatus": 200,
+    "durationMs": 245
+  }
+}
+```
+
+#### Regenerate Secret
+
+If your webhook secret is compromised, regenerate it immediately:
+
+```bash
+curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/{id}/regenerate-secret \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+```json
+{
+  "message": "Webhook secret regenerated successfully",
+  "warning": "Store the new secret securely. It will not be shown again.",
+  "data": {
+    "secret": "whsec_new123..."
+  }
+}
+```
+
+---
+
+### Webhook Security
+
+All webhook requests include a cryptographic signature that you **must verify** to ensure authenticity.
+
+#### Webhook Request Headers
+
+Each webhook delivery includes these headers:
+
+| Header | Description | Example |
+|--------|-------------|---------|
+| `X-Webhook-Signature` | HMAC-SHA256 signature | `sha256=a1b2c3d4...` |
+| `X-Webhook-Event` | Event type | `business-closed` |
+| `X-Webhook-Delivery-Id` | Unique delivery ID | `550e8400-e29b-41d4...` |
+| `User-Agent` | Always set to this value | `DomainMonitor-Webhook/1.0` |
+
+#### Signature Verification
+
+To verify the webhook signature:
+
+1. Get your webhook signing secret (from creation or regeneration)
+2. Retrieve the raw request body as received (don't parse it first)
+3. Compute HMAC-SHA256 hash using your secret as the key
+4. Format as `sha256={hex_digest}`
+5. Compare with `X-Webhook-Signature` header using timing-safe comparison
+
+#### Verification Code Examples
+
+**Node.js (Express):**
+
+```javascript
+const crypto = require('crypto');
+const express = require('express');
+
+const app = express();
+
+function verifyWebhookSignature(payload, signature, secret) {
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(JSON.stringify(payload));
+  const expectedSignature = `sha256=${hmac.digest('hex')}`;
+
+  // Use timing-safe comparison to prevent timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+}
+
+app.post('/webhooks/domain-monitor', express.json(), (req, res) => {
+  const signature = req.headers['x-webhook-signature'];
+  const eventType = req.headers['x-webhook-event'];
+  const deliveryId = req.headers['x-webhook-delivery-id'];
+  const secret = process.env.WEBHOOK_SECRET;
+
+  // Verify signature
+  if (!verifyWebhookSignature(req.body, signature, secret)) {
+    console.error('Invalid webhook signature');
+    return res.status(401).send('Invalid signature');
+  }
+
+  // Process webhook event
+  console.log(`Received event: ${eventType}`);
+  console.log(`Delivery ID: ${deliveryId}`);
+  console.log('Payload:', req.body);
+
+  // Handle specific events
+  switch (eventType) {
+    case 'business-closed':
+      handleBusinessClosed(req.body);
+      break;
+    case 'sentiment':
+      handleNegativeSentiment(req.body);
+      break;
+    case 'website':
+      handleWebsiteCheck(req.body);
+      break;
+    default:
+      console.log(`Unhandled event type: ${eventType}`);
+  }
+
+  // Return 200 to acknowledge receipt
+  res.status(200).send('OK');
+});
+
+function handleBusinessClosed(data) {
+  console.log(`Business closed: ${data.data.domain}`);
+  console.log(`Recommendation: ${data.data.recommendation}`);
+  // Your business logic here
+}
+
+function handleNegativeSentiment(data) {
+  console.log(`Negative sentiment for: ${data.data.domain}`);
+  // Your business logic here
+}
+
+function handleWebsiteCheck(data) {
+  console.log(`Website check complete: ${data.data.domain}`);
+  // Your business logic here
+}
+
+app.listen(3000);
+```
+
+**Python (Flask):**
+
+```python
+import hmac
+import hashlib
+import json
+import os
+from flask import Flask, request
+
+app = Flask(__name__)
+
+def verify_webhook_signature(payload, signature, secret):
+    expected_signature = 'sha256=' + hmac.new(
+        secret.encode('utf-8'),
+        json.dumps(payload, separators=(',', ':')).encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    # Use timing-safe comparison
+    return hmac.compare_digest(signature, expected_signature)
+
+@app.route('/webhooks/domain-monitor', methods=['POST'])
+def handle_webhook():
+    signature = request.headers.get('X-Webhook-Signature')
+    event_type = request.headers.get('X-Webhook-Event')
+    delivery_id = request.headers.get('X-Webhook-Delivery-Id')
+    secret = os.environ.get('WEBHOOK_SECRET')
+
+    # Verify signature
+    if not verify_webhook_signature(request.json, signature, secret):
+        print('Invalid webhook signature')
+        return 'Invalid signature', 401
+
+    # Process webhook event
+    print(f'Received event: {event_type}')
+    print(f'Delivery ID: {delivery_id}')
+    print(f'Payload: {request.json}')
+
+    # Handle specific events
+    if event_type == 'business-closed':
+        handle_business_closed(request.json)
+    elif event_type == 'sentiment':
+        handle_negative_sentiment(request.json)
+    elif event_type == 'website':
+        handle_website_check(request.json)
+    else:
+        print(f'Unhandled event type: {event_type}')
+
+    # Return 200 to acknowledge receipt
+    return 'OK', 200
+
+def handle_business_closed(payload):
+    domain = payload['data']['domain']
+    recommendation = payload['data']['recommendation']
+    print(f'Business closed: {domain}')
+    print(f'Recommendation: {recommendation}')
+    # Your business logic here
+
+def handle_negative_sentiment(payload):
+    domain = payload['data']['domain']
+    print(f'Negative sentiment for: {domain}')
+    # Your business logic here
+
+def handle_website_check(payload):
+    domain = payload['data']['domain']
+    print(f'Website check complete: {domain}')
+    # Your business logic here
+
+if __name__ == '__main__':
+    app.run(port=3000)
+```
+
+**PHP:**
+
+```php
+<?php
+
+function verifyWebhookSignature($payload, $signature, $secret) {
+    $expectedSignature = 'sha256=' . hash_hmac(
+        'sha256',
+        json_encode($payload),
+        $secret
+    );
+
+    // Use timing-safe comparison
+    return hash_equals($signature, $expectedSignature);
+}
+
+// Get webhook data
+$payload = json_decode(file_get_contents('php://input'), true);
+$signature = $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'];
+$eventType = $_SERVER['HTTP_X_WEBHOOK_EVENT'];
+$deliveryId = $_SERVER['HTTP_X_WEBHOOK_DELIVERY_ID'];
+$secret = getenv('WEBHOOK_SECRET');
+
+// Verify signature
+if (!verifyWebhookSignature($payload, $signature, $secret)) {
+    error_log('Invalid webhook signature');
+    http_response_code(401);
+    exit('Invalid signature');
+}
+
+// Process webhook event
+error_log("Received event: $eventType");
+error_log("Delivery ID: $deliveryId");
+
+// Handle specific events
+switch ($eventType) {
+    case 'business-closed':
+        handleBusinessClosed($payload);
+        break;
+    case 'sentiment':
+        handleNegativeSentiment($payload);
+        break;
+    case 'website':
+        handleWebsiteCheck($payload);
+        break;
+    default:
+        error_log("Unhandled event type: $eventType");
+}
+
+// Return 200 to acknowledge receipt
+http_response_code(200);
+echo 'OK';
+
+function handleBusinessClosed($payload) {
+    $domain = $payload['data']['domain'];
+    $recommendation = $payload['data']['recommendation'];
+    error_log("Business closed: $domain");
+    error_log("Recommendation: $recommendation");
+    // Your business logic here
+}
+
+function handleNegativeSentiment($payload) {
+    $domain = $payload['data']['domain'];
+    error_log("Negative sentiment for: $domain");
+    // Your business logic here
+}
+
+function handleWebsiteCheck($payload) {
+    $domain = $payload['data']['domain'];
+    error_log("Website check complete: $domain");
+    // Your business logic here
+}
+```
+
+---
+
+### Webhook Payload Format
+
+All webhook events follow this structure:
+
+```json
+{
+  "event": "business-closed",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "data": {
+    "domainId": "550e8400-e29b-41d4-a716-446655440000",
+    "domain": "example.com",
+    "recommendation": "fail",
+    "message": "Business appears to be closed based on verification data"
+  }
+}
+```
+
+#### Payload Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `event` | string | The event type that triggered this webhook |
+| `timestamp` | string | ISO 8601 timestamp when the event occurred |
+| `data` | object | Event-specific data (varies by event type) |
+| `data.domainId` | string | UUID of the domain (present for domain events) |
+| `data.domain` | string | The domain name |
+| `data.recommendation` | string | `pass`, `fail`, or `review` |
+| `data.message` | string | Human-readable event description |
+
+#### Example: Business Closed Event
+
+```json
+{
+  "event": "business-closed",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "data": {
+    "domainId": "550e8400-e29b-41d4-a716-446655440000",
+    "domain": "example.com",
+    "recommendation": "fail",
+    "message": "Business appears to be closed based on verification data",
+    "businessName": "Example Corp",
+    "industry": "Technology"
+  }
+}
+```
+
+#### Example: Test Event
+
+When you test a webhook endpoint, you'll receive:
+
+```json
+{
+  "event": "webhook.test",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "data": {
+    "message": "This is a test webhook from Domain Monitor API"
+  }
+}
+```
+
+---
+
+### Webhook Delivery Logs
+
+Monitor webhook deliveries to debug issues and track reliability.
+
+#### View Deliveries for Specific Endpoint
+
+```bash
+curl -X GET "https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/{id}/deliveries?limit=50" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+```json
+{
+  "message": "Delivery logs retrieved successfully",
   "data": [
     {
-      "id": "history-uuid-1",
-      "recommendation": "pass",
-      "provider": "truebiz",
-      "checkedAt": "2024-01-15T10:00:00.000Z"
+      "id": "delivery-uuid-1",
+      "eventType": "business-closed",
+      "domainId": "domain-uuid-1",
+      "attemptNumber": 1,
+      "status": "success",
+      "responseStatus": 200,
+      "durationMs": 245,
+      "errorMessage": null,
+      "sentAt": "2024-01-15T10:00:00.000Z",
+      "completedAt": "2024-01-15T10:00:00.245Z",
+      "createdAt": "2024-01-15T10:00:00.000Z"
     },
     {
-      "id": "history-uuid-2",
-      "recommendation": "review",
-      "provider": "truebiz",
-      "checkedAt": "2024-01-14T10:00:00.000Z"
+      "id": "delivery-uuid-2",
+      "eventType": "sentiment",
+      "domainId": "domain-uuid-2",
+      "attemptNumber": 2,
+      "status": "failed",
+      "responseStatus": 500,
+      "durationMs": 5000,
+      "errorMessage": "Connection timeout",
+      "sentAt": "2024-01-15T09:50:00.000Z",
+      "completedAt": "2024-01-15T09:50:05.000Z",
+      "createdAt": "2024-01-15T09:50:00.000Z"
     }
   ]
 }
 ```
 
+#### List All Delivery Logs
+
+View deliveries across all webhook endpoints:
+
+```bash
+curl -X GET "https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/deliveries?status=failed&limit=100" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | integer | Page number (default: 1) |
+| `limit` | integer | Items per page (default: 100, max: 1000) |
+| `status` | string | Filter by status: `pending`, `success`, `failed`, `retrying` |
+
+**Response:**
+```json
+{
+  "message": "Delivery logs retrieved successfully",
+  "data": [
+    {
+      "id": "delivery-uuid",
+      "endpointId": "webhook-uuid",
+      "endpointUrl": "https://your-app.com/webhooks",
+      "eventType": "business-closed",
+      "domainId": "domain-uuid",
+      "attemptNumber": 1,
+      "status": "success",
+      "responseStatus": 200,
+      "durationMs": 156,
+      "sentAt": "2024-01-15T10:00:00.000Z",
+      "completedAt": "2024-01-15T10:00:00.156Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 100,
+    "total": 250
+  }
+}
+```
+
+#### Delivery Status Values
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Delivery queued but not yet sent |
+| `success` | Delivered successfully (2xx response) |
+| `failed` | All retry attempts failed |
+| `retrying` | Delivery failed, will retry |
+
 ---
+
+### Webhook Retry Policy
+
+Failed webhook deliveries are automatically retried:
+
+- **Retry attempts:** 3 attempts total
+- **Retry schedule:**
+  - 1st retry: After 1 minute
+  - 2nd retry: After 5 minutes
+  - 3rd retry: After 15 minutes
+- **Timeout:** 10 seconds per delivery attempt
+- **Success criteria:** Any 2xx HTTP response code
+
+#### Disabling Endpoint After Failures
+
+If an endpoint consistently fails, it may be automatically disabled:
+- After 10 consecutive failed deliveries
+- You'll receive an email notification
+- Re-enable via PATCH `/api/v1/user-webhooks/{id}` with `"enabled": true`
+
+---
+
+### Webhook Best Practices
+
+#### 1. Security
+
+- **Always verify signatures** - Never process webhooks without verification
+- **Use timing-safe comparison** - Prevents timing attacks
+- **Store secrets securely** - Use environment variables or secrets manager
+- **Rotate secrets regularly** - Regenerate if compromised
+- **Use HTTPS only** - HTTP endpoints are rejected
+
+#### 2. Response Requirements
+
+- **Respond quickly** - Return 2xx within 10 seconds
+- **Process asynchronously** - Queue webhook for background processing
+- **Return before processing** - Don't wait for business logic to complete
+
+```javascript
+// Good: Queue and respond immediately
+app.post('/webhooks', express.json(), async (req, res) => {
+  if (!verifySignature(req.body, req.headers['x-webhook-signature'])) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  // Queue for background processing
+  await queue.add('webhook', req.body);
+
+  // Respond immediately
+  res.status(200).send('OK');
+});
+```
+
+#### 3. Idempotency
+
+- **Handle duplicate deliveries** - Use `X-Webhook-Delivery-Id` to deduplicate
+- **Store delivery IDs** - Track processed webhooks
+- **Make handlers idempotent** - Safe to process same event multiple times
+
+```javascript
+const processedDeliveries = new Set();
+
+app.post('/webhooks', express.json(), (req, res) => {
+  const deliveryId = req.headers['x-webhook-delivery-id'];
+
+  // Check if already processed
+  if (processedDeliveries.has(deliveryId)) {
+    return res.status(200).send('Already processed');
+  }
+
+  // Process webhook...
+  processedDeliveries.add(deliveryId);
+  res.status(200).send('OK');
+});
+```
+
+#### 4. Error Handling
+
+- **Return appropriate status codes**
+  - `200-299`: Success (delivery marked successful)
+  - `4xx`: Client error (no retry)
+  - `5xx`: Server error (will retry)
+- **Log all webhook activity** - For debugging and audit
+- **Monitor delivery success rates** - Set up alerts for failures
+
+#### 5. Testing
+
+- **Use test endpoint** - Verify your webhook handler works
+- **Test signature verification** - Ensure security is working
+- **Simulate failures** - Test retry behavior
+- **Monitor delivery logs** - Check for issues
+
+---
+
+### Webhook vs Polling
+
+| Aspect | Webhooks | Polling |
+|--------|----------|---------|
+| Latency | Real-time | Delayed by poll interval |
+| API Calls | Minimal | Frequent |
+| Efficiency | High | Low |
+| Implementation | More complex | Simple |
+| Reliability | Retries on failure | Consistent |
+| Best For | Real-time needs | Simple integrations |
+
+**Recommendation:** Use webhooks for production systems monitoring many domains. Use polling for simple integrations or during initial development.
+
+---
+
 
 ## Recommendations
 
@@ -705,11 +1343,11 @@ curl -X POST https://dev-domainmonitor.ipo-servers.net/api/v1/domains \
   -d '{
     "domain": "merchant-domain.com",
     "checkFrequency": "daily",
-    "merchantId": "merchant-user-uuid"
+    "userId": "merchant-user-uuid"
   }'
 ```
 
-The `merchantId` field is only available to superadmin and reseller roles.
+The `userId` field is only available to superadmin and reseller roles.
 
 ---
 

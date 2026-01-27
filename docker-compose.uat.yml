@@ -1,0 +1,21 @@
+# Blue/Green Deployment Docker Compose
+# No volumes - each deployment is self-contained with its own code
+# PORT is passed from command line: PORT=3001 docker compose -f docker-compose.bg.yml up
+
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      - PORT=${PORT}  # Override PORT from .env with command line value
+    command: npm start
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${PORT}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

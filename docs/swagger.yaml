@@ -68,6 +68,8 @@ servers:
     description: UAT server
   - url: https://monitor.payshield.ai
     description: Production server
+  - url: https://justin-dev-domainmonitor.ipo-servers.net
+    description: Justin Development server
 
 tags:
   - name: Health
@@ -80,6 +82,8 @@ tags:
     description: Domain monitoring operations
   - name: User Webhooks
     description: Register webhooks to receive domain event notifications
+  - name: Webhook Events
+    description: View incoming webhook events from providers (Superadmin/API Key only)
   - name: Providers
     description: Provider management (Superadmin only)
   - name: API Keys
@@ -337,7 +341,7 @@ components:
           nullable: true
           items:
             type: string
-          example: ["domain.verified", "domain.failed"]
+          example: ["business-closed", "sentiment"]
           description: Subscribed event types. null means all events.
         description:
           type: string
@@ -370,7 +374,7 @@ components:
           format: uuid
         eventType:
           type: string
-          example: domain.verified
+          example: business-closed
         domainId:
           type: string
           format: uuid
@@ -402,6 +406,52 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    WebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          example: truebiz
+          description: Provider name that sent the webhook
+        event_type:
+          type: string
+          example: domain.verified
+          description: Event type from the provider
+        domain_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated domain ID (if matched)
+        payload:
+          type: object
+          description: Raw webhook payload from provider
+        signature:
+          type: string
+          nullable: true
+          description: Webhook signature for verification
+        verified:
+          type: boolean
+          description: Whether signature was verified
+        processed:
+          type: boolean
+          description: Whether webhook was successfully processed
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When webhook was processed
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if processing failed
+        received_at:
+          type: string
+          format: date-time
+          description: When webhook was received
 
 paths:
   /health:
@@ -719,7 +769,6 @@ paths:
         - API Key via X-API-Key header (system-level access)
       security:
         - ApiKeyAuth: []
-        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -866,38 +915,65 @@ paths:
           schema:
             type: integer
             default: 1
+            minimum: 1
+          description: Page number
         - name: limit
           in: query
           schema:
             type: integer
             default: 20
             maximum: 100
+          description: Number of items per page
         - name: status
           in: query
           schema:
             type: string
             enum: [active, inactive]
+          description: Filter by domain status
         - name: recommendation
           in: query
           schema:
             type: string
             enum: [pass, fail, review]
+          description: Filter by recommendation status
         - name: search
           in: query
           schema:
             type: string
+            maxLength: 255
+          description: Search by domain or name
+        - name: industry
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by industry
+        - name: businessType
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by business type
+        - name: foundedYear
+          in: query
+          schema:
+            type: integer
+            minimum: 1800
+          description: Filter by founded year
         - name: sortBy
           in: query
           schema:
             type: string
-            enum: [created_at, updated_at, domain, name, recommendation, last_checked_at]
+            enum: [created_at, updated_at, domain, name, recommendation, last_checked_at, industry, business_type, founded_year]
             default: created_at
+          description: Field to sort by
         - name: sortOrder
           in: query
           schema:
             type: string
             enum: [asc, desc]
             default: desc
+          description: Sort order
       responses:
         '200':
           description: List of domains
@@ -922,7 +998,7 @@ paths:
       description: |
         Add a domain or business to monitor. Either `domain` or `name` (business name) is required.
 
-        Superadmins and resellers can optionally specify a `merchantId` to add domains on behalf of a merchant.
+        Superadmins and resellers can optionally specify a `userId` to add domains on behalf of a merchant user.
 
         Additional business information (address, contact details) can be provided for better matching.
 
@@ -1007,7 +1083,7 @@ paths:
 
                     If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
                     When provided, this value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
-                merchantId:
+                userId:
                   type: string
                   format: uuid
                   description: |
@@ -1040,7 +1116,7 @@ paths:
 
         The response includes both creation results and provider check results.
 
-        Superadmins and resellers can optionally specify a `merchantId` to add domains on behalf of a merchant.
+        Superadmins and resellers can optionally specify a `userId` to add domains on behalf of a merchant user.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -1117,7 +1193,7 @@ paths:
 
                           If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
                           When provided, this value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.
-                merchantId:
+                userId:
                   type: string
                   format: uuid
                   description: |
@@ -1278,49 +1354,7 @@ paths:
                           providerResponseId:
                             type: string
 
-  /api/v1/domains/{id}/history:
-    get:
-      tags:
-        - Domains
-      summary: Get domain check history
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 10
-            maximum: 100
-      responses:
-        '200':
-          description: Check history
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        recommendation:
-                          type: string
-                        provider:
-                          type: string
-                        checkedAt:
-                          type: string
-                          format: date-time
-
+ 
   /api/v1/domains/{id}/stop:
     patch:
       tags:
@@ -1464,9 +1498,21 @@ paths:
       tags:
         - User Webhooks
       summary: List webhook endpoints
-      description: Get all registered webhook endpoints for the authenticated user
-      security:
+      description: |
+        Get all registered webhook endpoints for the authenticated user.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to list webhooks for other users.
+      security:        
         - ApiKeyAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, lists webhooks for the authenticated user.
       responses:
         '200':
           description: Webhook endpoints retrieved
@@ -1493,18 +1539,17 @@ paths:
         Register a new webhook endpoint to receive domain event notifications.
 
         **Event Types:**
-        - `domain.created` - Domain registered
-        - `domain.updated` - Domain modified
-        - `domain.deleted` - Domain removed
-        - `domain.verified` - Domain verification successful
-        - `domain.failed` - Domain verification failed
-        - `domain.check.completed` - Periodic check completed
+        - 
 
         **Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.
 
         **Webhook Signature Verification:**
         The secret returned on creation is used to sign webhook payloads using HMAC-SHA256.
         Verify the signature in the `X-Webhook-Signature` header to ensure authenticity.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to create webhooks for other users.
+        Merchants can only create webhooks for themselves.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -1516,6 +1561,16 @@ paths:
               required:
                 - url
               properties:
+                userId:
+                  type: string
+                  format: uuid
+                  example: 550e8400-e29b-41d4-a716-446655440000
+                  description: |
+                    Target user ID for the webhook endpoint.
+                    - **Required when using API key authentication** (API keys are system-level and not tied to a specific user)
+                    - **Optional for JWT authentication** (defaults to the authenticated user's ID)
+                    - Superadmins and resellers can specify any userId
+                    - Regular merchants cannot specify userId (will be ignored and use their own ID)
                 url:
                   type: string
                   format: uri
@@ -1529,12 +1584,12 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
-                  example: ["domain.verified", "domain.failed"]
+                      - business-closed
+                      - sentiment
+                      - website
+                  example: ["business-closed", "sentiment"]
                   description: Event types to subscribe to. Omit or set to null to receive all events.
                 description:
                   type: string
@@ -1573,7 +1628,11 @@ paths:
       tags:
         - User Webhooks
       summary: Get webhook endpoint
-      description: Retrieve details of a specific webhook endpoint
+      description: |
+        Retrieve details of a specific webhook endpoint.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to view webhooks for other users.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1583,6 +1642,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, retrieves webhook for the authenticated user.
       responses:
         '200':
           description: Webhook endpoint retrieved
@@ -1605,7 +1671,11 @@ paths:
       tags:
         - User Webhooks
       summary: Update webhook endpoint
-      description: Update webhook endpoint configuration. All fields are optional.
+      description: |
+        Update webhook endpoint configuration. All fields are optional.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to update webhooks for other users.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1622,6 +1692,10 @@ paths:
             schema:
               type: object
               properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, updates webhook for the authenticated user.
                 url:
                   type: string
                   format: uri
@@ -1633,11 +1707,11 @@ paths:
                     type: string
                     enum:
                       - domain.created
-                      - domain.updated
+                      - business-profile
                       - domain.deleted
-                      - domain.verified
-                      - domain.failed
-                      - domain.check.completed
+                      - business-closed
+                      - sentiment
+                      - website
                   description: Event types to subscribe to. Set to null for all events.
                 description:
                   type: string
@@ -1669,7 +1743,11 @@ paths:
       tags:
         - User Webhooks
       summary: Delete webhook endpoint
-      description: Remove a webhook endpoint. This action cannot be undone.
+      description: |
+        Remove a webhook endpoint. This action cannot be undone.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to delete webhooks for other users.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1679,6 +1757,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, deletes webhook for the authenticated user.
       responses:
         '200':
           description: Webhook endpoint deleted
@@ -1702,7 +1787,10 @@ paths:
       summary: Test webhook endpoint
       description: |
         Send a test webhook to verify the endpoint is working.
-        This sends a sample `domain.verified` event to your endpoint.
+        This sends a sample `business-closed` event to your endpoint.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to test webhooks for other users.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1712,6 +1800,17 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, tests webhook for the authenticated user.
       responses:
         '200':
           description: Test webhook sent
@@ -1750,6 +1849,9 @@ paths:
         Generate a new signing secret for the webhook endpoint.
         The old secret will be immediately invalidated.
         Update your webhook handler with the new secret.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` to regenerate secrets for other users' webhooks.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1759,6 +1861,17 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, regenerates secret for the authenticated user's webhook.
       responses:
         '200':
           description: Secret regenerated
@@ -1790,6 +1903,9 @@ paths:
       description: |
         Get delivery logs for a webhook endpoint.
         Useful for debugging webhook delivery issues.
+
+        **Admin Access:**
+        Superadmins, resellers, and API key holders can specify a `userId` query parameter to view delivery logs for other users' webhooks.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1799,6 +1915,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Target user ID (superadmin/reseller/API key only). If omitted, retrieves logs for the authenticated user's webhook.
         - name: limit
           in: query
           schema:
@@ -1825,6 +1948,232 @@ paths:
           description: Webhook endpoint not found
         '401':
           description: Unauthorized
+
+  /api/v1/user-webhooks/deliveries:
+    get:
+      tags:
+        - User Webhooks
+      summary: List all delivery logs
+      description: |
+        Get all webhook delivery logs with optional filters.
+
+        **Access Control:**
+        - **Superadmin/API key**: Can query all deliveries or filter by any `userId`
+        - **Reseller**: Can only see deliveries for their assigned merchants. If `userId` is specified, it must be a merchant assigned to them
+        - **Merchant**: Can only see their own deliveries (cannot use `userId` filter)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by user ID. Superadmin/API key can use any userId. Resellers can only filter by their assigned merchants.
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Number of items per page
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, success, failed, retrying]
+          description: Filter by delivery status
+      responses:
+        '200':
+          description: Delivery logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Delivery logs retrieved successfully
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/WebhookDelivery'
+                        - type: object
+                          properties:
+                            endpointId:
+                              type: string
+                              format: uuid
+                            endpointUrl:
+                              type: string
+                              format: uri
+                            userId:
+                              type: string
+                              format: uuid
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+  /api/v1/webhooks:
+    get:
+      tags:
+        - Webhook Events
+      summary: List provider webhook events
+      description: |
+        Get all webhook events received from providers with filtering capabilities.
+
+        This endpoint shows incoming webhooks from external providers (like TrueBiz), not outgoing
+        webhooks to user endpoints. Use this for debugging provider integrations and monitoring
+        webhook delivery status.
+
+        **Requires:** Superadmin role or API Key authentication
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+          description: Filter by provider name (e.g., "truebiz")
+          example: truebiz
+        - name: domainId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by associated domain ID
+        - name: status
+          in: query
+          schema:
+            type: boolean
+          description: Filter by processing status (true = processed, false = failed/pending)
+          example: true
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter webhooks received from this date (ISO 8601 format)
+          example: "2026-01-01T00:00:00Z"
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter webhooks received until this date (ISO 8601 format)
+          example: "2026-01-27T23:59:59Z"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Pagination offset
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (alternative to offset)
+      responses:
+        '200':
+          description: List of webhook events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookEvent'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        description: Total number of matching webhooks
+                        example: 150
+                      limit:
+                        type: integer
+                        example: 20
+                      offset:
+                        type: integer
+                        example: 0
+                      page:
+                        type: integer
+                        example: 1
+                      totalPages:
+                        type: integer
+                        example: 8
+              examples:
+                filtered:
+                  summary: Filtered by provider
+                  value:
+                    success: true
+                    data:
+                      - id: "123e4567-e89b-12d3-a456-426614174000"
+                        provider: "truebiz"
+                        event_type: "domain.verified"
+                        domain_id: "987e6543-e21b-43d3-a456-426614174999"
+                        payload:
+                          type: "domain.verified"
+                          data:
+                            domain: "example.com"
+                        signature: "sha256=abc123..."
+                        verified: true
+                        processed: true
+                        processed_at: "2026-01-27T10:00:00Z"
+                        error_message: null
+                        received_at: "2026-01-27T09:59:00Z"
+                    pagination:
+                      total: 45
+                      limit: 20
+                      offset: 0
+                      page: 1
+                      totalPages: 3
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Superadmin or API Key access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error - Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/v1/admin/providers:
     get:
