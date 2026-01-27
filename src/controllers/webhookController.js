@@ -3,6 +3,7 @@ const domainRepository = require('../repositories/domainRepository');
 const providerRepository = require('../repositories/providerRepository');
 const providerService = require('../services/providerService');
 const webhookDeliveryService = require('../services/webhookDeliveryService');
+const webhookService = require('../services/webhookService');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
 const { decrypt } = require('../utils/encryption');
@@ -305,6 +306,57 @@ const webhookController = {
     } catch (error) {
       // Update with new error message
       await webhookRepository.updateProcessed(id, null, false, null, error.message, null, null);
+      next(error);
+    }
+  },
+
+  /**
+   * List all webhook events with filtering
+   * GET /api/v1/webhooks
+   */
+  async listAllWebhooks(req, res, next) {
+    try {
+      const {
+        provider,
+        domainId,
+        status,
+        dateFrom,
+        dateTo,
+        limit,
+        offset,
+        page
+      } = req.query;
+
+      // Calculate offset from page if page is provided instead of offset
+      const calculatedOffset = page
+        ? (parseInt(page) - 1) * (parseInt(limit) || 20)
+        : offset;
+
+      const filters = {
+        provider,
+        domainId,
+        status,
+        dateFrom,
+        dateTo,
+        limit: limit || 20,
+        offset: calculatedOffset || 0
+      };
+
+      const result = await webhookService.listWebhooks(filters);
+
+      logger.info({
+        filters,
+        count: result.webhooks.length,
+        total: result.pagination.total
+      }, 'Listed webhook events');
+
+      res.json({
+        success: true,
+        data: result.webhooks,
+        pagination: result.pagination
+      });
+
+    } catch (error) {
       next(error);
     }
   }
