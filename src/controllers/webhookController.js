@@ -133,7 +133,8 @@ const webhookController = {
           result.event_category || null,
           null,
           result.alertId || null,
-          result.alertData || null
+          result.alertData || null,
+          result.description || null
         );
 
         logger.info({
@@ -155,14 +156,13 @@ const webhookController = {
               if (eventCategory) {
                 const userPayload = {
                   event: eventCategory,
+                  description: result.description || null,
                   timestamp: new Date().toISOString(),
                   data: {
                     domainId: result.domainId,
                     domain: domain.domain,
                     status: domain.status,
-                    provider,
-                    providerEvent: payload.type,
-                    providerData: payload
+                    provider
                   }
                 };
 
