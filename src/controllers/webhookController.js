@@ -129,7 +129,9 @@ const webhookController = {
           result.domainId || null,
           true,
           result.event_category || null,
-          null
+          null,
+          result.alertId || null,
+          result.alertData || null
         );
 
         logger.info({
@@ -285,9 +287,11 @@ const webhookController = {
       await webhookRepository.updateProcessed(
         webhookEvent.id,
         result.domainId || null,
-        result.event_category || null,
         true,
-        null
+        result.event_category || null,
+        null,
+        result.alertId || null,
+        result.alertData || null
       );
 
       res.json({
@@ -299,7 +303,7 @@ const webhookController = {
 
     } catch (error) {
       // Update with new error message
-      await webhookRepository.updateProcessed(id, null, false, null, error.message);
+      await webhookRepository.updateProcessed(id, null, false, null, error.message, null, null);
       next(error);
     }
   }

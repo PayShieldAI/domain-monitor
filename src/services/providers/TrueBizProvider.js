@@ -764,33 +764,46 @@ class TrueBizProvider extends BaseProvider {
       throw new Error('No alert_details_link in webhook payload');
     }
 
-    // Try to fetch full alert details from TrueBiz API
-    // Note: This may fail with 404 if the alert is not yet available or requires different auth
+    // Extract the alert ID from the href (last portion after the last slash)
+    // Example: "https://ae.truebiz.io/api/v1/monitoring/alerts/abc-123" -> "abc-123"
+    const alertId = alertDetailUrl.split('/').filter(Boolean).pop();
+    if (!alertId) {
+      logger.error({ alertDetailUrl }, 'Could not extract alert ID from href');
+      throw new Error('Could not extract alert ID from href');
+    }
+
+    logger.info({ alertId, originalHref: alertDetailUrl }, 'Extracted alert ID from webhook');
+
+    // Try to fetch full alert details from TrueBiz API using the correct endpoint
+    // Use the relative endpoint instead of the full href
     let alertData = null;
+    const endpoint = `/monitoring/alerts/${alertId}`;
     try {
-      logger.info({ alertDetailUrl }, 'Fetching alert details from TrueBiz');
-      const alertResponse = await this.client.get(alertDetailUrl);
+      logger.info({ alertId, endpoint }, 'Fetching alert details from TrueBiz');
+      const alertResponse = await this.client.get(endpoint);
       alertData = alertResponse.data;
 
       logger.info({
-        alertId: alertData.id,
+        alertId,
         domain: alertData.domain,
         externalRefId: alertData.external_ref_id,
         flaggedCategories: alertData.flagged_categories
       }, 'Retrieved alert details from TrueBiz');
     } catch (error) {
       logger.warn({
-        alertDetailUrl,
+        alertId,
+        endpoint,
         error: error.message,
         status: error.response?.status
       }, 'Could not fetch alert details from TrueBiz API - webhook logged but no domain action taken');
 
       // If we can't fetch details, we can't process this alert fully
-      // Return early with the webhook data logged
+      // Return early with the webhook data logged, including the alert ID
       return {
         processed: true,
         error: 'Alert details not accessible via API',
         note: 'Webhook received and logged, but full alert details could not be retrieved',
+        alertId,
         alertDetailUrl,
         webhookPayload
       };
@@ -855,7 +868,8 @@ class TrueBizProvider extends BaseProvider {
     logger.info({
       domainId: domain.id,
       domain: domain.domain,
-      alertId: alertData.id,
+      alertId,
+      providerAlertId: alertData.id,
       flaggedCategories: alertData.flagged_categories,
       eventCategory
     }, 'Monitoring alert webhook processed successfully');
@@ -865,6 +879,7 @@ class TrueBizProvider extends BaseProvider {
       domainId: domain.id,
       domain: domain.domain,
       event_category: eventCategory,
+      alertId,
       alertData,
       action: 'alert_processed'
     };
