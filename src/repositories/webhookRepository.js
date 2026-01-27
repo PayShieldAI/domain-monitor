@@ -137,6 +137,111 @@ const webhookRepository = {
       }
       return e;
     });
+  },
+
+   async findWithFilters(filters = {}) {
+    const {
+      provider,
+      domainId,
+      status,
+      dateFrom,
+      dateTo,
+      limit = 20,
+      offset = 0
+    } = filters;
+
+    let sql = 'SELECT * FROM provider_webhook_events WHERE 1=1';
+    const params = [];
+
+    if (provider) {
+      sql += ' AND provider = ?';
+      params.push(provider);
+    }
+
+    if (domainId) {
+      sql += ' AND domain_id = ?';
+      params.push(domainId);
+    }
+
+    if (status !== undefined && status !== null) {
+      sql += ' AND processed = ?';
+      params.push(status);
+    }
+
+    if (dateFrom) {
+      sql += ' AND received_at >= ?';
+      params.push(dateFrom);
+    }
+
+    if (dateTo) {
+      sql += ' AND received_at <= ?';
+      params.push(dateTo);
+    }
+
+    sql += ' ORDER BY received_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const events = await query(sql, params);
+    return events.map(e => {
+      // Parse payload if it's a string
+      if (e.payload && typeof e.payload === 'string') {
+        try {
+          e.payload = JSON.parse(e.payload);
+        } catch (err) {
+          // Already parsed or invalid JSON, leave as is
+        }
+      }
+      // Parse alert_response if it's a string
+      if (e.alert_response && typeof e.alert_response === 'string') {
+        try {
+          e.alert_response = JSON.parse(e.alert_response);
+        } catch (err) {
+          // Already parsed or invalid JSON, leave as is
+        }
+      }
+      return e;
+    });
+  },
+
+  async countWithFilters(filters = {}) {
+    const {
+      provider,
+      domainId,
+      status,
+      dateFrom,
+      dateTo
+    } = filters;
+
+    let sql = 'SELECT COUNT(*) as total FROM provider_webhook_events WHERE 1=1';
+    const params = [];
+
+    if (provider) {
+      sql += ' AND provider = ?';
+      params.push(provider);
+    }
+
+    if (domainId) {
+      sql += ' AND domain_id = ?';
+      params.push(domainId);
+    }
+
+    if (status !== undefined && status !== null) {
+      sql += ' AND processed = ?';
+      params.push(status);
+    }
+
+    if (dateFrom) {
+      sql += ' AND received_at >= ?';
+      params.push(dateFrom);
+    }
+
+    if (dateTo) {
+      sql += ' AND received_at <= ?';
+      params.push(dateTo);
+    }
+
+    const result = await queryOne(sql, params);
+    return result ? result.total : 0;
   }
 };
 
