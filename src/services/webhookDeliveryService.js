@@ -121,7 +121,9 @@ const webhookDeliveryService = {
    * Deliver event to all subscribed user endpoints
    */
   async deliverToUserEndpoints(userId, eventType, payload, domainId = null) {
-    const endpoints = await userWebhookRepository.findActiveByUserIdAndEvent(userId, eventType);
+    // skip eventType untill found mapping criteria
+    // const endpoints = await userWebhookRepository.findActiveByUserIdAndEvent(userId, eventType);
+    const endpoints = await userWebhookRepository.findByUserId(userId);
 
     if (endpoints.length === 0) {
       logger.debug({ userId, eventType }, 'No webhook endpoints subscribed to event');
