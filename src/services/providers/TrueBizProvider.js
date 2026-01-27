@@ -652,7 +652,7 @@ class TrueBizProvider extends BaseProvider {
     }
 
     // No mapping found
-    return null;
+    return 'no-match';
   }
 
   /**
