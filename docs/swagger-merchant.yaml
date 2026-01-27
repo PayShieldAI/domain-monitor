@@ -28,11 +28,109 @@ servers:
     description: Justin Development server
 
 tags:
-  
+
   - name: Domains
     description: Domain monitoring and management
   - name: User Webhooks
-    description: Register webhooks to receive domain event notifications
+    description: |
+      Register webhooks to receive domain event notifications
+
+      ## Webhook Security
+
+      All webhooks sent by Domain Monitor include a cryptographic signature that you should verify to ensure the webhook is authentic and hasn't been tampered with.
+
+      ### Signature Verification
+
+      Each webhook request includes the following headers:
+      - `X-Webhook-Signature`: HMAC-SHA256 signature in the format `sha256={hex_digest}`
+      - `X-Webhook-Event`: The event type (e.g., `business-closed`, `sentiment`)
+      - `X-Webhook-Delivery-Id`: Unique delivery ID for tracking
+      - `User-Agent`: Always `DomainMonitor-Webhook/1.0`
+
+      ### How to Verify the Signature
+
+      1. Retrieve the signing secret for your webhook endpoint (provided when you register or regenerate the secret)
+      2. Get the raw request body as a string
+      3. Compute the HMAC-SHA256 signature:
+         - Use your webhook secret as the key
+         - Hash the raw JSON request body (as received, without parsing)
+         - Format the result as `sha256={hex_digest}`
+      4. Compare your computed signature with the `X-Webhook-Signature` header using a timing-safe comparison
+
+      ### Example Verification Code
+
+      **Node.js:**
+      ```javascript
+      const crypto = require('crypto');
+
+      function verifyWebhookSignature(payload, signature, secret) {
+        const hmac = crypto.createHmac('sha256', secret);
+        hmac.update(JSON.stringify(payload));
+        const expectedSignature = `sha256=${hmac.digest('hex')}`;
+
+        // Use timing-safe comparison to prevent timing attacks
+        return crypto.timingSafeEqual(
+          Buffer.from(signature),
+          Buffer.from(expectedSignature)
+        );
+      }
+
+      // Express.js example
+      app.post('/webhooks', express.json(), (req, res) => {
+        const signature = req.headers['x-webhook-signature'];
+        const secret = process.env.WEBHOOK_SECRET; // Your webhook secret
+
+        if (!verifyWebhookSignature(req.body, signature, secret)) {
+          return res.status(401).send('Invalid signature');
+        }
+
+        // Process webhook event
+        const eventType = req.headers['x-webhook-event'];
+        console.log('Received event:', eventType, req.body);
+
+        res.status(200).send('OK');
+      });
+      ```
+
+      **Python:**
+      ```python
+      import hmac
+      import hashlib
+      import json
+
+      def verify_webhook_signature(payload, signature, secret):
+          expected_signature = 'sha256=' + hmac.new(
+              secret.encode('utf-8'),
+              json.dumps(payload, separators=(',', ':')).encode('utf-8'),
+              hashlib.sha256
+          ).hexdigest()
+
+          return hmac.compare_digest(signature, expected_signature)
+
+      # Flask example
+      @app.route('/webhooks', methods=['POST'])
+      def handle_webhook():
+          signature = request.headers.get('X-Webhook-Signature')
+          secret = os.environ.get('WEBHOOK_SECRET')
+
+          if not verify_webhook_signature(request.json, signature, secret):
+              return 'Invalid signature', 401
+
+          event_type = request.headers.get('X-Webhook-Event')
+          print(f'Received event: {event_type}', request.json)
+
+          return 'OK', 200
+      ```
+
+      ### Important Security Notes
+
+      - **Always verify the signature** before processing webhook data
+      - Use a **timing-safe comparison** function to prevent timing attacks
+      - Store your webhook secret securely (environment variables, secrets manager)
+      - If your secret is compromised, regenerate it immediately using the `/api/v1/user-webhooks/{id}/regenerate-secret` endpoint
+      - Webhook requests timeout after 10 seconds
+      - Failed deliveries are retried up to 3 times (after 1 min, 5 min, 15 min)
+      - Return a 2xx status code within 10 seconds to acknowledge receipt
 
 paths:
  
@@ -482,37 +580,6 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-    delete:
-      tags:
-        - User Webhooks
-      summary: Delete webhook endpoint
-      description: Remove a webhook endpoint
-      operationId: deleteWebhookEndpoint
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Webhook endpoint deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Webhook endpoint deleted successfully
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
   /api/v1/user-webhooks/{id}/test:
     post:
       tags:
@@ -783,6 +850,63 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    WebhookEvent:
+      type: object
+      description: |
+        Webhook event payload sent to your endpoint.
+
+        **Important:** Always verify the `X-Webhook-Signature` header before processing this payload.
+      properties:
+        event:
+          type: string
+          description: The event type
+          enum:
+            - domain.created
+            - business-profile
+            - domain.deleted
+            - business-closed
+            - sentiment
+            - website
+            - webhook.test
+          example: business-closed
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event occurred
+          example: "2024-01-15T10:30:00Z"
+        data:
+          type: object
+          description: Event-specific data
+          properties:
+            domainId:
+              type: string
+              format: uuid
+              description: The domain ID (present for domain-related events)
+            domain:
+              type: string
+              description: The domain name
+              example: example.com
+            recommendation:
+              type: string
+              enum: [pass, fail, review]
+              description: The verification recommendation
+            message:
+              type: string
+              description: Human-readable event description
+          additionalProperties: true
+      required:
+        - event
+        - timestamp
+        - data
+      example:
+        event: business-closed
+        timestamp: "2024-01-15T10:30:00Z"
+        data:
+          domainId: "123e4567-e89b-12d3-a456-426614174000"
+          domain: example.com
+          recommendation: fail
+          message: "Business appears to be closed based on verification data"
 
     Pagination:
       type: object
