@@ -98,6 +98,7 @@ const webhookController = {
 
       // Store webhook event
       const webhookEvent = await webhookRepository.create({
+        providerId: providerConfig.id,
         provider,
         eventType: payload.type || 'unknown',
         payload,
