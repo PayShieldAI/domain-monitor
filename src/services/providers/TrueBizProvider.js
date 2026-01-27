@@ -842,18 +842,27 @@ class TrueBizProvider extends BaseProvider {
       };
     }
 
-    // Extract event category from flagged categories
+    // Extract event category and description from flagged categories
     // flagged_categories could be an array or an object
     let eventCategory = null;
+    let description = null;
     if (alertData.flagged_categories) {
       if (Array.isArray(alertData.flagged_categories) && alertData.flagged_categories.length > 0) {
         // If it's an array, use the first category
         const firstCategory = alertData.flagged_categories[0];
         const categoryName = typeof firstCategory === 'string' ? firstCategory : firstCategory?.name;
         eventCategory = this.mapEventTypeToUserEvent(categoryName);
+        // Extract description from first category if it's an object
+        if (typeof firstCategory === 'object' && firstCategory?.description) {
+          description = firstCategory.description;
+        }
       } else if (typeof alertData.flagged_categories === 'object' && alertData.flagged_categories.name) {
         // If it's an object with name property
         eventCategory = this.mapEventTypeToUserEvent(alertData.flagged_categories.name);
+        // Extract description if available
+        if (alertData.flagged_categories.description) {
+          description = alertData.flagged_categories.description;
+        }
       } else if (typeof alertData.flagged_categories === 'string') {
         // If it's just a string
         eventCategory = this.mapEventTypeToUserEvent(alertData.flagged_categories);
@@ -871,7 +880,8 @@ class TrueBizProvider extends BaseProvider {
       alertId,
       providerAlertId: alertData.id,
       flaggedCategories: alertData.flagged_categories,
-      eventCategory
+      eventCategory,
+      description
     }, 'Monitoring alert webhook processed successfully');
 
     return {
@@ -879,6 +889,7 @@ class TrueBizProvider extends BaseProvider {
       domainId: domain.id,
       domain: domain.domain,
       event_category: eventCategory,
+      description,
       alertId,
       alertData,
       action: 'alert_processed'

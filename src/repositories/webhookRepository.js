@@ -46,12 +46,13 @@ const webhookRepository = {
     return event;
   },
 
-  async updateProcessed(id, domainId, success, event_category, errorMessage = null, alertId = null, alertResponse = null) {
+  async updateProcessed(id, domainId, success, event_category, errorMessage = null, alertId = null, alertResponse = null, description = null) {
     const sql = `
       UPDATE provider_webhook_events
       SET processed = ?,
           domain_id = ?,
           event_category = ?,
+          description = ?,
           processed_at = NOW(),
           error_message = ?,
           alert_id = ?,
@@ -62,6 +63,7 @@ const webhookRepository = {
       success,
       domainId,
       event_category,
+      description || null,
       errorMessage,
       alertId || null,
       alertResponse ? JSON.stringify(alertResponse) : null,

@@ -17,15 +17,15 @@ info:
 
   version: 1.0.0
   contact:
-    email: support@domainmonitor.com
+    email: sysadmin@payshield.ai
 
 servers:
   - url: https://dev-domainmonitor.ipo-servers.net
     description: Development server
-  - url: https://api.domainmonitor.com
-    description: Production server
-  - url: https://justin-dev-domainmonitor.ipo-servers.net
-    description: Justin Development server
+  - url: https://uat-monitor.payshield.ai
+    description: UAT server
+  - url: https://monitor.payshield.ai
+    description: Production Server
 
 tags:
 
