@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Domain Monitor API - Merchant Portal",
-    "description": "Merchant-focused API for domain monitoring and verification.\n\n## Overview\nThis API allows merchants to monitor their domain reputation and verification status.\nAll endpoints use JWT Bearer token authentication - no API keys required.\n\n## Check Frequency Options\nWhen creating or monitoring domains, you can specify how often the domain should be checked:\n- **7**: Weekly monitoring (every 7 days)\n- **30**: Monthly monitoring (every 30 days)\n- **90**: Quarterly monitoring (every 90 days)\n\nIf `checkFrequency` is not provided, only a one-time check is performed without ongoing monitoring.\n\n## Authentication\nAll endpoints (except login and registration) require JWT authentication.\n\n```\nAuthorization: Bearer <your_access_token>\n```\n\nGet your token by calling `/api/v1/auth/login` with your merchant credentials.\n\n## Quick Start\n\n### 1. Login\n```bash\ncurl -X POST https://your-domain.com/api/v1/auth/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"email\": \"merchant@example.com\",\n    \"password\": \"YourSecurePassword123\"\n  }'\n```\n\n### 2. Access Your Domains\n```bash\ncurl -X GET https://your-domain.com/api/v1/domains \\\n  -H \"Authorization: Bearer <your_access_token>\"\n```\n\n### 3. Add a Domain\n```bash\ncurl -X POST https://your-domain.com/api/v1/domains \\\n  -H \"Authorization: Bearer <your_access_token>\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"domain\": \"example.com\",\n    \"name\": \"Example Domain\",\n    \"checkFrequency\": \"7\"\n  }'\n```\n",
+    "description": "Merchant-focused API for domain monitoring and verification.\n\n## Overview\nThis API allows merchants to monitor their domain reputation and verification status.\nAll endpoints use JWT Bearer token authentication \n\n## Authentication\nAll endpoints require JWT authentication.\n\n```\nAuthorization: Bearer <your_access_token>\n```\n",
     "version": "1.0.0",
     "contact": {
       "email": "support@domainmonitor.com"
@@ -16,270 +16,28 @@
     {
       "url": "https://api.domainmonitor.com",
       "description": "Production server"
+    },
+    {
+      "url": "https://justin-dev-domainmonitor.ipo-servers.net",
+      "description": "Justin Development server"
     }
   ],
   "tags": [
-    {
-      "name": "Authentication",
-      "description": "Login and token management"
-    },
     {
       "name": "Domains",
       "description": "Domain monitoring and management"
     },
     {
       "name": "User Webhooks",
-      "description": "Register webhooks to receive domain event notifications"
+      "description": "Register webhooks to receive domain event notifications\n\n## Webhook Security\n\nAll webhooks sent by Domain Monitor include a cryptographic signature that you should verify to ensure the webhook is authentic and hasn't been tampered with.\n\n### Signature Verification\n\nEach webhook request includes the following headers:\n- `X-Webhook-Signature`: HMAC-SHA256 signature in the format `sha256={hex_digest}`\n- `X-Webhook-Event`: The event type (e.g., `business-closed`, `sentiment`)\n- `X-Webhook-Delivery-Id`: Unique delivery ID for tracking\n- `User-Agent`: Always `DomainMonitor-Webhook/1.0`\n\n### How to Verify the Signature\n\n1. Retrieve the signing secret for your webhook endpoint (provided when you register or regenerate the secret)\n2. Get the raw request body as a string\n3. Compute the HMAC-SHA256 signature:\n   - Use your webhook secret as the key\n   - Hash the raw JSON request body (as received, without parsing)\n   - Format the result as `sha256={hex_digest}`\n4. Compare your computed signature with the `X-Webhook-Signature` header using a timing-safe comparison\n\n### Example Verification Code\n\n**Node.js:**\n```javascript\nconst crypto = require('crypto');\n\nfunction verifyWebhookSignature(payload, signature, secret) {\n  const hmac = crypto.createHmac('sha256', secret);\n  hmac.update(JSON.stringify(payload));\n  const expectedSignature = `sha256=${hmac.digest('hex')}`;\n\n  // Use timing-safe comparison to prevent timing attacks\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expectedSignature)\n  );\n}\n\n// Express.js example\napp.post('/webhooks', express.json(), (req, res) => {\n  const signature = req.headers['x-webhook-signature'];\n  const secret = process.env.WEBHOOK_SECRET; // Your webhook secret\n\n  if (!verifyWebhookSignature(req.body, signature, secret)) {\n    return res.status(401).send('Invalid signature');\n  }\n\n  // Process webhook event\n  const eventType = req.headers['x-webhook-event'];\n  console.log('Received event:', eventType, req.body);\n\n  res.status(200).send('OK');\n});\n```\n\n**Python:**\n```python\nimport hmac\nimport hashlib\nimport json\n\ndef verify_webhook_signature(payload, signature, secret):\n    expected_signature = 'sha256=' + hmac.new(\n        secret.encode('utf-8'),\n        json.dumps(payload, separators=(',', ':')).encode('utf-8'),\n        hashlib.sha256\n    ).hexdigest()\n\n    return hmac.compare_digest(signature, expected_signature)\n\n# Flask example\n@app.route('/webhooks', methods=['POST'])\ndef handle_webhook():\n    signature = request.headers.get('X-Webhook-Signature')\n    secret = os.environ.get('WEBHOOK_SECRET')\n\n    if not verify_webhook_signature(request.json, signature, secret):\n        return 'Invalid signature', 401\n\n    event_type = request.headers.get('X-Webhook-Event')\n    print(f'Received event: {event_type}', request.json)\n\n    return 'OK', 200\n```\n\n### Important Security Notes\n\n- **Always verify the signature** before processing webhook data\n- Use a **timing-safe comparison** function to prevent timing attacks\n- Store your webhook secret securely (environment variables, secrets manager)\n- If your secret is compromised, regenerate it immediately using the `/api/v1/user-webhooks/{id}/regenerate-secret` endpoint\n- Webhook requests timeout after 10 seconds\n- Failed deliveries are retried up to 3 times (after 1 min, 5 min, 15 min)\n- Return a 2xx status code within 10 seconds to acknowledge receipt\n"
     }
   ],
   "paths": {
-    "/api/v1/auth/login": {
-      "post": {
-        "tags": ["Authentication"],
-        "summary": "Merchant login",
-        "description": "Authenticate and receive JWT access and refresh tokens",
-        "operationId": "login",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["email", "password"],
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "example": "merchant@example.com"
-                  },
-                  "password": {
-                    "type": "string",
-                    "format": "password",
-                    "example": "SecurePassword123"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Login successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Login successful"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "accessToken": {
-                          "type": "string",
-                          "description": "JWT access token (valid for 15 minutes)"
-                        },
-                        "refreshToken": {
-                          "type": "string",
-                          "description": "JWT refresh token (valid for 7 days)"
-                        },
-                        "expiresIn": {
-                          "type": "integer",
-                          "example": 900,
-                          "description": "Token expiry in seconds"
-                        },
-                        "user": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "format": "uuid"
-                            },
-                            "email": {
-                              "type": "string"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "role": {
-                              "type": "string",
-                              "enum": ["merchant", "reseller"]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationError"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/refresh": {
-      "post": {
-        "tags": ["Authentication"],
-        "summary": "Refresh access token",
-        "description": "Get a new access token using a refresh token",
-        "operationId": "refreshToken",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["refreshToken"],
-                "properties": {
-                  "refreshToken": {
-                    "type": "string",
-                    "description": "The refresh token received during login"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Token refreshed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Token refreshed"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "accessToken": {
-                          "type": "string"
-                        },
-                        "expiresIn": {
-                          "type": "integer",
-                          "example": 900
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/logout": {
-      "post": {
-        "tags": ["Authentication"],
-        "summary": "Logout",
-        "description": "Revoke all refresh tokens for the current user",
-        "operationId": "logout",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Logout successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Logout successful"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/change-password": {
-      "post": {
-        "tags": ["Authentication"],
-        "summary": "Change password",
-        "description": "Change the current user's password",
-        "operationId": "changePassword",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["currentPassword", "newPassword"],
-                "properties": {
-                  "currentPassword": {
-                    "type": "string",
-                    "format": "password"
-                  },
-                  "newPassword": {
-                    "type": "string",
-                    "format": "password",
-                    "minLength": 8,
-                    "description": "Must be at least 8 characters"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Password changed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Password changed successfully"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
     "/api/v1/domains": {
       "get": {
-        "tags": ["Domains"],
+        "tags": [
+          "Domains"
+        ],
         "summary": "List all domains",
         "description": "Get a list of all domains belonging to the authenticated merchant",
         "operationId": "listDomains",
@@ -294,7 +52,10 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": ["active", "inactive"]
+              "enum": [
+                "active",
+                "inactive"
+              ]
             },
             "description": "Filter by domain status"
           },
@@ -303,26 +64,102 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": ["pass", "fail", "review"]
+              "enum": [
+                "pass",
+                "fail",
+                "review"
+              ]
             },
             "description": "Filter by recommendation status"
+          },
+          {
+            "name": "industry",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Filter by industry"
+          },
+          {
+            "name": "businessType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Filter by business type"
+          },
+          {
+            "name": "foundedYear",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1800
+            },
+            "description": "Filter by founded year"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "Search by domain or name"
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "domain",
+                "name",
+                "recommendation",
+                "last_checked_at",
+                "industry",
+                "business_type",
+                "founded_year"
+              ],
+              "default": "created_at"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            },
+            "description": "Sort order"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "description": "Page number"
           },
           {
             "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
-              "default": 50,
+              "default": 20,
               "maximum": 100
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 0
-            }
+            },
+            "description": "Number of items per page"
           }
         ],
         "responses": {
@@ -357,7 +194,9 @@
         }
       },
       "post": {
-        "tags": ["Domains"],
+        "tags": [
+          "Domains"
+        ],
         "summary": "Add a new domain",
         "description": "Register a new domain for monitoring",
         "operationId": "createDomain",
@@ -372,7 +211,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["domain"],
+                "required": [
+                  "domain"
+                ],
                 "properties": {
                   "domain": {
                     "type": "string",
@@ -386,7 +227,11 @@
                   },
                   "checkFrequency": {
                     "type": "string",
-                    "enum": ["7", "30", "90"],
+                    "enum": [
+                      "7",
+                      "30",
+                      "90"
+                    ],
                     "default": "7",
                     "description": "Monitoring frequency in days:\n- '7': Weekly monitoring (every 7 days)\n- '30': Monthly monitoring (every 30 days)\n- '90': Quarterly monitoring (every 90 days)\n\nThis value is sent to the monitoring provider to configure the monitoring package frequency.\n"
                   }
@@ -436,7 +281,9 @@
     },
     "/api/v1/domains/{id}": {
       "get": {
-        "tags": ["Domains"],
+        "tags": [
+          "Domains"
+        ],
         "summary": "Get domain by ID",
         "description": "Retrieve detailed information about a specific domain",
         "operationId": "getDomainById",
@@ -475,20 +322,22 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }
     },
     "/api/v1/domains/{id}/details": {
       "get": {
-        "tags": ["Domains"],
-        "summary": "Get domain verification details",
-        "description": "Get comprehensive verification details from the provider",
+        "tags": [
+          "Domains"
+        ],
+        "summary": "Get domain verification details with raw provider data",
+        "description": "Get comprehensive verification details including the complete raw response from the provider.\n\n**Important:** This endpoint returns the full raw JSON response from the verification provider\nin the `web_presence.rawData` field. This includes all data points collected during the\nweb presence review.\n",
         "operationId": "getDomainDetails",
         "security": [
           {
@@ -508,7 +357,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Domain details retrieved successfully",
+            "description": "Domain details with raw provider data retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -518,34 +367,74 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object",
-                      "properties": {
-                        "domain": {
+                      "allOf": [
+                        {
                           "$ref": "#/components/schemas/Domain"
                         },
-                        "verificationData": {
+                        {
                           "type": "object",
-                          "description": "Provider-specific verification data"
+                          "properties": {
+                            "web_presence": {
+                              "type": "object",
+                              "properties": {
+                                "recommendation": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pass",
+                                    "fail",
+                                    "review"
+                                  ]
+                                },
+                                "businessName": {
+                                  "type": "string"
+                                },
+                                "industry": {
+                                  "type": "string"
+                                },
+                                "businessType": {
+                                  "type": "string"
+                                },
+                                "foundedYear": {
+                                  "type": "integer"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "rawData": {
+                                  "type": "object",
+                                  "description": "Complete raw JSON response from the verification provider",
+                                  "nullable": true
+                                },
+                                "providerResponseId": {
+                                  "type": "string",
+                                  "description": "Provider's unique response/transaction ID",
+                                  "nullable": true
+                                }
+                              }
+                            }
+                          }
                         }
-                      }
+                      ]
                     }
                   }
                 }
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }
     },
     "/api/v1/domains/{id}/stop": {
       "patch": {
-        "tags": ["Domains"],
+        "tags": [
+          "Domains"
+        ],
         "summary": "Stop monitoring domain",
         "description": "Pause monitoring for this domain",
         "operationId": "stopDomain",
@@ -582,18 +471,20 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }
     },
     "/api/v1/domains/{id}/start": {
       "patch": {
-        "tags": ["Domains"],
+        "tags": [
+          "Domains"
+        ],
         "summary": "Start monitoring domain",
         "description": "Resume monitoring for this domain",
         "operationId": "startDomain",
@@ -630,178 +521,20 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
           "404": {
             "$ref": "#/components/responses/NotFoundError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
-    "/api/v1/domains/bulk": {
-      "post": {
-        "tags": ["Domains"],
-        "summary": "Bulk add domains",
-        "description": "Add multiple domains at once",
-        "operationId": "bulkCreateDomains",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["domains"],
-                "properties": {
-                  "domains": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "items": {
-                      "type": "object",
-                      "required": ["domain"],
-                      "properties": {
-                        "domain": {
-                          "type": "string",
-                          "example": "example.com"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "checkFrequency": {
-                          "type": "string",
-                          "enum": ["7", "30", "90"],
-                          "default": "7",
-                          "description": "Monitoring frequency in days:\n- '7': Weekly monitoring (every 7 days)\n- '30': Monthly monitoring (every 30 days)\n- '90': Quarterly monitoring (every 90 days)\n\nThis value is sent to the monitoring provider to configure the monitoring package frequency.\n"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Bulk operation completed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "successful": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/Domain"
-                          }
-                        },
-                        "failed": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "domain": {
-                                "type": "string"
-                              },
-                              "error": {
-                                "type": "string"
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      }
-    },
-    "/api/v1/domains/bulk/retrieve": {
-      "post": {
-        "tags": ["Domains"],
-        "summary": "Bulk retrieve domain data",
-        "description": "Retrieve multiple domains by their IDs",
-        "operationId": "bulkRetrieveDomains",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["domainIds"],
-                "properties": {
-                  "domainIds": {
-                    "type": "array",
-                    "maxItems": 100,
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Domains retrieved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Domain"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
           }
         }
       }
     },
     "/api/v1/user-webhooks": {
       "get": {
-        "tags": ["User Webhooks"],
+        "tags": [
+          "User Webhooks"
+        ],
         "summary": "List webhook endpoints",
         "description": "Get all registered webhook endpoints for the authenticated merchant",
         "operationId": "listWebhookEndpoints",
@@ -836,109 +569,13 @@
             "$ref": "#/components/responses/UnauthorizedError"
           }
         }
-      },
-      "post": {
-        "tags": ["User Webhooks"],
-        "summary": "Register webhook endpoint",
-        "description": "Register a new webhook endpoint to receive domain event notifications.\n\n**Event Types:**\n- `domain.created` - Domain registered\n- `business-profile` - Domain modified\n- `domain.deleted` - Domain removed\n- `business-closed` - Domain verification successful\n- `sentiment` - Domain verification failed\n- `website` - Periodic check completed\n\n**Subscribe to all events:** Omit the `events` field or set it to `null` to receive all events.\n",
-        "operationId": "createWebhookEndpoint",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["url"],
-                "properties": {
-                  "url": {
-                    "type": "string",
-                    "format": "uri",
-                    "maxLength": 2048,
-                    "example": "https://your-app.com/webhooks/domain-monitor",
-                    "description": "HTTPS URL to receive webhook events"
-                  },
-                  "events": {
-                    "type": "array",
-                    "nullable": true,
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "domain.created",
-                        "business-profile",
-                        "domain.deleted",
-                        "business-closed",
-                        "sentiment",
-                        "website"
-                      ]
-                    },
-                    "example": ["business-closed", "sentiment"],
-                    "description": "Event types to subscribe to. Omit or set to null to receive all events."
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 500,
-                    "example": "Production webhook endpoint"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Webhook endpoint created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Webhook endpoint created successfully"
-                    },
-                    "warning": {
-                      "type": "string",
-                      "example": "Store the secret securely. It will not be shown again."
-                    },
-                    "data": {
-                      "allOf": [
-                        {
-                          "$ref": "#/components/schemas/WebhookEndpoint"
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "secret": {
-                              "type": "string",
-                              "example": "abc123...",
-                              "description": "Webhook signing secret (only shown once)"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
       }
     },
     "/api/v1/user-webhooks/{id}": {
       "get": {
-        "tags": ["User Webhooks"],
+        "tags": [
+          "User Webhooks"
+        ],
         "summary": "Get webhook endpoint",
         "description": "Retrieve details of a specific webhook endpoint",
         "operationId": "getWebhookEndpoint",
@@ -977,16 +614,18 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       },
       "patch": {
-        "tags": ["User Webhooks"],
+        "tags": [
+          "User Webhooks"
+        ],
         "summary": "Update webhook endpoint",
         "description": "Update webhook endpoint configuration",
         "operationId": "updateWebhookEndpoint",
@@ -1066,64 +705,20 @@
           "400": {
             "$ref": "#/components/responses/ValidationError"
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
-          }
-        }
-      },
-      "delete": {
-        "tags": ["User Webhooks"],
-        "summary": "Delete webhook endpoint",
-        "description": "Remove a webhook endpoint",
-        "operationId": "deleteWebhookEndpoint",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Webhook endpoint deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Webhook endpoint deleted successfully"
-                    }
-                  }
-                }
-              }
-            }
           },
           "404": {
             "$ref": "#/components/responses/NotFoundError"
-          },
-          "401": {
-            "$ref": "#/components/responses/UnauthorizedError"
           }
         }
       }
     },
     "/api/v1/user-webhooks/{id}/test": {
       "post": {
-        "tags": ["User Webhooks"],
+        "tags": [
+          "User Webhooks"
+        ],
         "summary": "Test webhook endpoint",
         "description": "Send a test webhook to verify the endpoint is working",
         "operationId": "testWebhookEndpoint",
@@ -1177,18 +772,20 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }
     },
     "/api/v1/user-webhooks/{id}/regenerate-secret": {
       "post": {
-        "tags": ["User Webhooks"],
+        "tags": [
+          "User Webhooks"
+        ],
         "summary": "Regenerate webhook secret",
         "description": "Generate a new signing secret for the webhook endpoint",
         "operationId": "regenerateWebhookSecret",
@@ -1238,18 +835,20 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFoundError"
-          },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
           }
         }
       }
     },
     "/api/v1/user-webhooks/{id}/deliveries": {
       "get": {
-        "tags": ["User Webhooks"],
+        "tags": [
+          "User Webhooks"
+        ],
         "summary": "View webhook delivery logs",
         "description": "Get delivery logs for a webhook endpoint",
         "operationId": "getWebhookDeliveries",
@@ -1308,8 +907,107 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
           "404": {
             "$ref": "#/components/responses/NotFoundError"
+          }
+        }
+      }
+    },
+    "/api/v1/user-webhooks/deliveries": {
+      "get": {
+        "tags": [
+          "User Webhooks"
+        ],
+        "summary": "List all delivery logs",
+        "description": "Get all webhook delivery logs for your account with optional filters.\n\nReturns delivery logs across all your webhook endpoints.\n",
+        "operationId": "listAllDeliveries",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Number of items per page"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "success",
+                "failed",
+                "retrying"
+              ]
+            },
+            "description": "Filter by delivery status"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery logs retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Delivery logs retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/WebhookDelivery"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "endpointId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "endpointUrl": {
+                                "type": "string",
+                                "format": "uri"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -1345,11 +1043,18 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "inactive"]
+            "enum": [
+              "active",
+              "inactive"
+            ]
           },
           "recommendation": {
             "type": "string",
-            "enum": ["pass", "fail", "review"],
+            "enum": [
+              "pass",
+              "fail",
+              "review"
+            ],
             "nullable": true
           },
           "provider": {
@@ -1358,7 +1063,11 @@
           },
           "checkFrequency": {
             "type": "string",
-            "enum": ["7", "30", "90"],
+            "enum": [
+              "7",
+              "30",
+              "90"
+            ],
             "description": "Monitoring frequency in days:\n- '7': Weekly monitoring (every 7 days)\n- '30': Monthly monitoring (every 30 days)\n- '90': Quarterly monitoring (every 90 days)\n\nThis value is sent to the monitoring provider (e.g., TrueBiz) to configure the monitoring package frequency.\n"
           },
           "lastCheckedAt": {
@@ -1399,7 +1108,10 @@
             "items": {
               "type": "string"
             },
-            "example": ["business-closed", "sentiment"],
+            "example": [
+              "business-closed",
+              "sentiment"
+            ],
             "description": "Subscribed event types. null means all events."
           },
           "description": {
@@ -1455,7 +1167,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "success", "failed", "retrying"]
+            "enum": [
+              "pending",
+              "success",
+              "failed",
+              "retrying"
+            ]
           },
           "responseStatus": {
             "type": "integer",
@@ -1484,6 +1201,77 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "WebhookEvent": {
+        "type": "object",
+        "description": "Webhook event payload sent to your endpoint.\n\n**Important:** Always verify the `X-Webhook-Signature` header before processing this payload.\n",
+        "properties": {
+          "event": {
+            "type": "string",
+            "description": "The event type",
+            "enum": [
+              "domain.created",
+              "business-profile",
+              "domain.deleted",
+              "business-closed",
+              "sentiment",
+              "website",
+              "webhook.test"
+            ],
+            "example": "business-closed"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the event occurred",
+            "example": "2024-01-15T10:30:00Z"
+          },
+          "data": {
+            "type": "object",
+            "description": "Event-specific data",
+            "properties": {
+              "domainId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "The domain ID (present for domain-related events)"
+              },
+              "domain": {
+                "type": "string",
+                "description": "The domain name",
+                "example": "example.com"
+              },
+              "recommendation": {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "review"
+                ],
+                "description": "The verification recommendation"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable event description"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "event",
+          "timestamp",
+          "data"
+        ],
+        "example": {
+          "event": "business-closed",
+          "timestamp": "2024-01-15T10:30:00Z",
+          "data": {
+            "domainId": "123e4567-e89b-12d3-a456-426614174000",
+            "domain": "example.com",
+            "recommendation": "fail",
+            "message": "Business appears to be closed based on verification data"
           }
         }
       },
