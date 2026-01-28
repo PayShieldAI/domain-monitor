@@ -62,7 +62,7 @@ info:
     name: Proprietary
 
 servers:
-  - url: https://justin-dev-domainmonitor.ipo-servers.net
+  - url: https://dev-domainmonitor.ipo-servers.net
     description: Development server
   - url: https://uat-monitor.payshield.ai
     description: UAT server
