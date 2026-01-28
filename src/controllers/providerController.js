@@ -64,7 +64,7 @@ const providerController = {
       const provider = await providerAdminService.createProvider(req.body);
 
       logger.info(
-        { userId: req.user.id, providerId: provider.id, providerName: provider.name },
+        { userId: req.user?.id, providerId: provider.id, providerName: provider.name },
         'Provider created by admin'
       );
 
@@ -87,7 +87,7 @@ const providerController = {
       const provider = await providerAdminService.updateProvider(req.params.id, req.body);
 
       logger.info(
-        { userId: req.user.id, providerId: provider.id, providerName: provider.name },
+        { userId: req.user?.id, providerId: provider.id, providerName: provider.name },
         'Provider updated by admin'
       );
 
@@ -110,7 +110,7 @@ const providerController = {
       const provider = await providerAdminService.enableProvider(req.params.id);
 
       logger.info(
-        { userId: req.user.id, providerId: provider.id, providerName: provider.name },
+        { userId: req.user?.id, providerId: provider.id, providerName: provider.name },
         'Provider enabled by admin'
       );
 
@@ -133,7 +133,7 @@ const providerController = {
       const provider = await providerAdminService.disableProvider(req.params.id);
 
       logger.info(
-        { userId: req.user.id, providerId: provider.id, providerName: provider.name },
+        { userId: req.user?.id, providerId: provider.id, providerName: provider.name },
         'Provider disabled by admin'
       );
 
@@ -156,7 +156,7 @@ const providerController = {
       const provider = await providerAdminService.updatePriority(req.params.id, req.body.priority);
 
       logger.info(
-        { userId: req.user.id, providerId: provider.id, providerName: provider.name, priority: provider.priority },
+        { userId: req.user?.id, providerId: provider.id, providerName: provider.name, priority: provider.priority },
         'Provider priority updated by admin'
       );
 
@@ -179,7 +179,7 @@ const providerController = {
       await providerAdminService.deleteProvider(req.params.id);
 
       logger.info(
-        { userId: req.user.id, providerId: req.params.id },
+        { userId: req.user?.id, providerId: req.params.id },
         'Provider deleted by admin'
       );
 
