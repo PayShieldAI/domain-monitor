@@ -2029,6 +2029,24 @@ paths:
             type: string
             enum: [pending, success, failed, retrying]
           description: Filter by delivery status
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries from this date (ISO 8601 format, e.g., 2025-01-01 or 2025-01-01T00:00:00Z)
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter deliveries until this date (ISO 8601 format, e.g., 2025-01-31 or 2025-01-31T23:59:59Z)
+        - name: domainId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by domain ID
       responses:
         '200':
           description: Delivery logs retrieved
