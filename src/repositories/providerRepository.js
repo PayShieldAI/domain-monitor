@@ -88,6 +88,67 @@ const providerRepository = {
   },
 
   /**
+   * Update provider with partial fields (only updates provided fields)
+   */
+  async updatePartial(id, updates) {
+    const fields = [];
+    const values = [];
+
+    // Build dynamic UPDATE query based on provided fields
+    if (updates.name !== undefined) {
+      fields.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.displayName !== undefined) {
+      fields.push('display_name = ?');
+      values.push(updates.displayName);
+    }
+    if (updates.apiBaseUrl !== undefined) {
+      fields.push('api_base_url = ?');
+      values.push(updates.apiBaseUrl);
+    }
+    if (updates.apiKeyEncrypted !== undefined) {
+      fields.push('api_key_encrypted = ?');
+      values.push(updates.apiKeyEncrypted);
+    }
+    if (updates.webhookSecretEncrypted !== undefined) {
+      fields.push('webhook_secret_encrypted = ?');
+      values.push(updates.webhookSecretEncrypted);
+    }
+    if (updates.enabled !== undefined) {
+      fields.push('enabled = ?');
+      values.push(updates.enabled);
+    }
+    if (updates.priority !== undefined) {
+      fields.push('priority = ?');
+      values.push(updates.priority);
+    }
+    if (updates.rateLimit !== undefined) {
+      fields.push('rate_limit = ?');
+      values.push(updates.rateLimit);
+    }
+    if (updates.timeout !== undefined) {
+      fields.push('timeout = ?');
+      values.push(updates.timeout);
+    }
+    if (updates.config !== undefined) {
+      fields.push('config = ?');
+      values.push(JSON.stringify(updates.config));
+    }
+
+    // Always update the updated_at timestamp
+    fields.push('updated_at = NOW()');
+
+    // Add the ID for the WHERE clause
+    values.push(id);
+
+    const sql = `UPDATE providers SET ${fields.join(', ')} WHERE id = ?`;
+    await query(sql, values);
+
+    return this.findById(id);
+  },
+
+  /**
    * Update provider enabled status
    */
   async updateEnabled(id, enabled) {
