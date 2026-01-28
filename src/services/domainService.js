@@ -83,10 +83,7 @@ const domainService = {
     // Trigger initial domain check and optionally start monitoring (async, don't wait)
     (async () => {
       try {
-        // First, do the initial web presence review with all submitted fields
-        const checkResult = await providerService.checkDomain(newDomain.id, providerPayload);
-        logger.info({ domainId: newDomain.id, domain, name }, 'Initial domain check completed');
-
+        
         // Only start monitoring if:
         // 1. checkFrequency is provided (not null/empty) - user wants ongoing monitoring
         // 2. domain is provided - monitoring requires a domain, cannot monitor by business name only
@@ -115,6 +112,12 @@ const domainService = {
         } else {
           logger.info({ domainId: newDomain.id, name }, 'Skipping monitoring - no domain provided (business name only)');
         }
+
+        //  do the initial web presence review with all submitted fields.             
+        const checkResult = await providerService.checkDomain(newDomain.id, providerPayload);
+        logger.info({ domainId: newDomain.id, domain, name }, 'Initial domain check completed');
+
+
       } catch (err) {
         logger.error({ domainId: newDomain.id, error: err.message }, 'Initial domain check failed');
       }
