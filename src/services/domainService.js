@@ -495,6 +495,30 @@ const domainService = {
     return this.formatDomainResponse(updated);
   },
 
+  async recheckDomain(userId, domainId) {
+    const domain = await domainRepository.findByIdAndUserId(domainId, userId);
+    if (!domain) {
+      throw new AppError('Domain not found', 404, 'DOMAIN_NOT_FOUND');
+    }
+
+    logger.info({ userId, domainId, domain: domain.domain }, 'Manually triggering domain check');
+
+    // Trigger provider domain check - this will update the domain table automatically
+    const checkResult = await providerService.checkDomain(domainId, domain.domain);
+
+    logger.info({
+      userId,
+      domainId,
+      domain: domain.domain,
+      recommendation: checkResult.recommendation
+    }, 'Manual domain check completed');
+
+    // Fetch updated domain data
+    const updatedDomain = await domainRepository.findByIdAndUserId(domainId, userId);
+
+    return this.formatDomainResponse(updatedDomain);
+  },
+
   async startMonitoringBulk(userId, ids) {
     const result = await domainRepository.bulkUpdateStatus(ids, userId, 'active');
 

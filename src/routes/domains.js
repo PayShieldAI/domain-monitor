@@ -21,6 +21,7 @@ router.post('/', validate(createDomainSchema), domainController.create);
 router.get('/', validate(listDomainsQuerySchema, 'query'), domainController.list);
 router.get('/:id', validate(domainIdParamSchema, 'params'), domainController.getById);
 router.get('/:id/details', validate(domainIdParamSchema, 'params'), domainController.getDetails);
+router.post('/:id/check', validate(domainIdParamSchema, 'params'), domainController.recheckDomain);
 router.patch('/:id/stop', validate(domainIdParamSchema, 'params'), domainController.stop);
 router.patch('/:id/start', validate(domainIdParamSchema, 'params'), domainController.start);
 

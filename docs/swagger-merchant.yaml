@@ -390,6 +390,45 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
 
   
+  /api/v1/domains/{id}/check:
+    post:
+      tags:
+        - Domains
+      summary: Manually trigger domain verification check
+      description: |
+        Manually trigger a domain verification check with the provider.
+        - Get updated verification data for an existing domain
+        - Re-verify a domain after making changes
+        - Trigger an on-demand check outside the regular monitoring schedule
+      operationId: recheckDomain
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Domain ID
+      responses:
+        '200':
+          description: Domain check completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Domain verification check completed successfully
+                  data:
+                    $ref: '#/components/schemas/Domain'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /api/v1/domains/{id}/stop:
     patch:
       tags:

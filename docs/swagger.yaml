@@ -1353,6 +1353,44 @@ paths:
                             type: string
 
  
+  /api/v1/domains/{id}/check:
+    post:
+      tags:
+        - Domains
+      summary: Manually trigger domain verification check
+      description: |
+        Manually trigger a domain verification check with the provider and update the domain table with the results.
+
+        This endpoint reuses the same verification logic that runs when a domain is created.
+        The check results (recommendation, business info, etc.) are automatically saved to the domain record.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Domain ID
+      responses:
+        '200':
+          description: Domain check completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Domain verification check completed successfully
+                  data:
+                    $ref: '#/components/schemas/Domain'
+        '404':
+          description: Domain not found
+        '401':
+          description: Unauthorized
+
   /api/v1/domains/{id}/stop:
     patch:
       tags:
