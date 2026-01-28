@@ -10,9 +10,6 @@ router.use(authenticateFlexible, requireSuperadminOrApiKey);
 // Get recent API logs
 router.get('/', apiLogController.getRecentLogs);
 
-// Get API log by ID
-router.get('/:id', apiLogController.getLogById);
-
 // Get API logs by user ID
 router.get('/user/:userId', apiLogController.getLogsByUserId);
 
@@ -24,5 +21,8 @@ router.get('/stats/summary', apiLogController.getStats);
 
 // Delete old logs (cleanup)
 router.delete('/cleanup', apiLogController.deleteOldLogs);
+
+// Get API log by ID
+router.get('/:id', apiLogController.getLogById);
 
 module.exports = router;
