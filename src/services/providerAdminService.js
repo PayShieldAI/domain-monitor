@@ -69,6 +69,10 @@ const providerAdminService = {
       config
     });
 
+    if (!provider) {
+      throw new AppError('Provider creation failed', 500, 'PROVIDER_CREATE_FAILED');
+    }
+
     logger.info({ providerId: provider.id, name: provider.name }, 'Provider created');
 
     // Reload provider service to pick up new provider
@@ -126,6 +130,10 @@ const providerAdminService = {
 
     // Update provider with only the provided fields
     const provider = await providerRepository.updatePartial(id, fieldsToUpdate);
+
+    if (!provider) {
+      throw new AppError('Provider not found after update', 500, 'PROVIDER_UPDATE_FAILED');
+    }
 
     logger.info({ providerId: provider.id, name: provider.name }, 'Provider updated');
 
