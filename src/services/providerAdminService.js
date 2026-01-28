@@ -78,7 +78,7 @@ const providerAdminService = {
   },
 
   /**
-   * Update existing provider
+   * Update existing provider (partial update - only updates provided fields)
    */
   async updateProvider(id, updates) {
     const existing = await providerRepository.findById(id);
@@ -86,16 +86,16 @@ const providerAdminService = {
       throw new AppError('Provider not found', 404, 'PROVIDER_NOT_FOUND');
     }
 
+    const fieldsToUpdate = {};
+
     // If updating API key, encrypt it
     if (updates.apiKey) {
-      updates.apiKeyEncrypted = encrypt(updates.apiKey);
-      delete updates.apiKey;
+      fieldsToUpdate.apiKeyEncrypted = encrypt(updates.apiKey);
     }
 
     // If updating webhook secret, encrypt it
     if (updates.webhookSecret) {
-      updates.webhookSecretEncrypted = encrypt(updates.webhookSecret);
-      delete updates.webhookSecret;
+      fieldsToUpdate.webhookSecretEncrypted = encrypt(updates.webhookSecret);
     }
 
     // If updating name, check for conflicts
@@ -104,26 +104,28 @@ const providerAdminService = {
       if (conflict) {
         throw new AppError('Provider name already exists', 409, 'PROVIDER_NAME_CONFLICT');
       }
+      fieldsToUpdate.name = updates.name;
     }
 
     // Parse config if provided as string
-    if (updates.config && typeof updates.config === 'string') {
-      updates.config = JSON.parse(updates.config);
+    if (updates.config !== undefined) {
+      if (typeof updates.config === 'string') {
+        fieldsToUpdate.config = JSON.parse(updates.config);
+      } else {
+        fieldsToUpdate.config = updates.config;
+      }
     }
 
-    // Update provider
-    const provider = await providerRepository.upsert({
-      name: updates.name || existing.name,
-      displayName: updates.displayName || existing.display_name,
-      apiBaseUrl: updates.apiBaseUrl || existing.api_base_url,
-      apiKeyEncrypted: updates.apiKeyEncrypted || existing.api_key_encrypted,
-      webhookSecretEncrypted: updates.webhookSecretEncrypted || existing.webhook_secret_encrypted,
-      enabled: updates.enabled !== undefined ? updates.enabled : existing.enabled,
-      priority: updates.priority !== undefined ? updates.priority : existing.priority,
-      rateLimit: updates.rateLimit !== undefined ? updates.rateLimit : existing.rate_limit,
-      timeout: updates.timeout !== undefined ? updates.timeout : existing.timeout,
-      config: updates.config || this.parseConfig(existing.config)
-    });
+    // Add other fields if provided
+    if (updates.displayName !== undefined) fieldsToUpdate.displayName = updates.displayName;
+    if (updates.apiBaseUrl !== undefined) fieldsToUpdate.apiBaseUrl = updates.apiBaseUrl;
+    if (updates.enabled !== undefined) fieldsToUpdate.enabled = updates.enabled;
+    if (updates.priority !== undefined) fieldsToUpdate.priority = updates.priority;
+    if (updates.rateLimit !== undefined) fieldsToUpdate.rateLimit = updates.rateLimit;
+    if (updates.timeout !== undefined) fieldsToUpdate.timeout = updates.timeout;
+
+    // Update provider with only the provided fields
+    const provider = await providerRepository.updatePartial(id, fieldsToUpdate);
 
     logger.info({ providerId: provider.id, name: provider.name }, 'Provider updated');
 
