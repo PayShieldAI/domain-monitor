@@ -113,7 +113,25 @@ const listDeliveriesQuerySchema = Joi.object({
     .default(100),
   status: Joi.string()
     .valid('pending', 'success', 'failed', 'retrying')
+    .optional(),
+  dateFrom: Joi.date()
+    .iso()
     .optional()
+    .messages({
+      'date.format': 'dateFrom must be a valid ISO 8601 date (e.g., 2025-01-01 or 2025-01-01T00:00:00Z)'
+    }),
+  dateTo: Joi.date()
+    .iso()
+    .optional()
+    .messages({
+      'date.format': 'dateTo must be a valid ISO 8601 date (e.g., 2025-01-31 or 2025-01-31T23:59:59Z)'
+    }),
+  domainId: Joi.string()
+    .uuid()
+    .optional()
+    .messages({
+      'string.guid': 'Invalid domain ID format'
+    })
   // eventType: Joi.string()
   //   .valid(...validEvents)
   //   .optional()

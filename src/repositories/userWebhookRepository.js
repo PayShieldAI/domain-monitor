@@ -195,7 +195,7 @@ const userWebhookRepository = {
   },
 
   async findAllDeliveryLogs(options = {}) {
-    const { userId, resellerId, page = 1, limit = 100, status, eventType } = options;
+    const { userId, resellerId, page = 1, limit = 100, status, eventType, dateFrom, dateTo, domainId } = options;
 
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 100;
@@ -271,6 +271,27 @@ const userWebhookRepository = {
       countSql += ' AND dl.event_type = ?';
       params.push(eventType);
       countParams.push(eventType);
+    }
+
+    if (dateFrom) {
+      sql += ' AND dl.created_at >= ?';
+      countSql += ' AND dl.created_at >= ?';
+      params.push(dateFrom);
+      countParams.push(dateFrom);
+    }
+
+    if (dateTo) {
+      sql += ' AND dl.created_at <= ?';
+      countSql += ' AND dl.created_at <= ?';
+      params.push(dateTo);
+      countParams.push(dateTo);
+    }
+
+    if (domainId) {
+      sql += ' AND dl.domain_id = ?';
+      countSql += ' AND dl.domain_id = ?';
+      params.push(domainId);
+      countParams.push(domainId);
     }
 
     sql += ' ORDER BY dl.created_at DESC LIMIT ? OFFSET ?';

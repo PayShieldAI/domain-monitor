@@ -289,7 +289,7 @@ const userWebhookService = {
    * List all delivery logs with optional filters
    */
   async listAllDeliveries(options = {}) {
-    const { userId, resellerId, page, limit, status, eventType } = options;
+    const { userId, resellerId, page, limit, status, eventType, dateFrom, dateTo, domainId } = options;
 
     const result = await userWebhookRepository.findAllDeliveryLogs({
       userId,
@@ -297,7 +297,10 @@ const userWebhookService = {
       page,
       limit,
       status,
-      eventType
+      eventType,
+      dateFrom,
+      dateTo,
+      domainId
     });
 
     return {

@@ -286,7 +286,7 @@ const userWebhookController = {
 
   async listAllDeliveries(req, res, next) {
     try {
-      const { userId, page, limit, status, eventType } = req.query;
+      const { userId, page, limit, status, eventType, dateFrom, dateTo, domainId } = req.query;
 
       const userContext = getUserContext(req);
       if (!userContext) {
@@ -320,7 +320,10 @@ const userWebhookController = {
         page,
         limit,
         status,
-        eventType
+        eventType,
+        dateFrom,
+        dateTo,
+        domainId
       });
 
       res.json({
