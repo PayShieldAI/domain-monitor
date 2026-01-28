@@ -5,7 +5,14 @@ info:
     Merchant-focused API for domain monitoring and verification.
 
     ## Overview
+
     This API allows merchants to monitor their domain reputation and verification status.
+
+    When a domain is added, monitoring starts immediately and an initial web presence
+    verification is attempted asynchronously. Verification depends on external providers
+    and may fail, timeout, or return incomplete data. Monitoring continues regardless
+    of verification outcome.
+
     All endpoints use JWT Bearer token authentication 
 
     ## Authentication
@@ -33,7 +40,10 @@ tags:
     description: Domain monitoring and management
   - name: User Webhooks
     description: |
-      Register webhooks to receive domain event notifications
+      Register webhooks to receive domain event notifications.
+
+      Webhook events may be triggered by underlying verification provider signals
+      and represent the latest known verification state for a domain.
 
       ## Webhook Security
 
@@ -53,7 +63,8 @@ tags:
       2. Get the raw request body as a string
       3. Compute the HMAC-SHA256 signature:
          - Use your webhook secret as the key
-         - Hash the raw JSON request body (as received, without parsing)
+         - Hash the raw request body exactly as received (before JSON parsing).
+           Do not re-stringify parsed payloads, as this will invalidate the signature.
          - Format the result as `sha256={hex_digest}`
       4. Compare your computed signature with the `X-Webhook-Signature` header using a timing-safe comparison
 
@@ -235,7 +246,11 @@ paths:
       tags:
         - Domains
       summary: Add a new domain
-      description: Register a new domain for monitoring
+      description: >
+        Register a new domain and start monitoring immediately.
+        An initial web presence verification is attempted asynchronously.
+        Verification may fail, timeout, or return incomplete data and does not
+        affect the monitoring status of the domain.
       operationId: createDomain
       security:
         - BearerAuth: []
@@ -269,7 +284,7 @@ paths:
                     This value is sent to the monitoring provider to configure the monitoring package frequency.
       responses:
         '201':
-          description: Domain created successfully
+          description: Domain created successfully and initial verification attempted
           content:
             application/json:
               schema:
@@ -296,7 +311,11 @@ paths:
       tags:
         - Domains
       summary: Get domain by ID
-      description: Retrieve detailed information about a specific domain
+      description: >
+        Retrieve detailed information about a specific domain, including the
+        current verification recommendation. This endpoint should be used to
+        check the latest verification status after domain creation or a manual
+        verification retry.
       operationId: getDomainById
       security:
         - BearerAuth: []
@@ -330,11 +349,12 @@ paths:
         - Domains
       summary: Get domain verification details with raw provider data
       description: |
-        Get comprehensive verification details including the complete raw response from the provider.
+        Get comprehensive verification details including the complete raw
+        response from the provider.
 
-        **Important:** This endpoint returns the full raw JSON response from the verification provider
-        in the `web_presence.rawData` field. This includes all data points collected during the
-        web presence review.
+        The raw provider response may be null if verification failed or timed out.
+        Availability of raw data depends on provider response and does not affect
+        monitoring status.
       operationId: getDomainDetails
       security:
         - BearerAuth: []
@@ -396,10 +416,13 @@ paths:
         - Domains
       summary: Manually trigger domain verification check
       description: |
-        Manually trigger a domain verification check with the provider.
-        - Get updated verification data for an existing domain
-        - Re-verify a domain after making changes
-        - Trigger an on-demand check outside the regular monitoring schedule
+        Manually retry the web presence verification for an existing domain.
+
+        This endpoint is intended for cases where the initial verification failed,
+        timed out, or returned incomplete data. It re-attempts verification only and
+        does not affect monitoring status.
+
+        This operation may take up to 30–40 seconds depending on provider response times.
       operationId: recheckDomain
       security:
         - BearerAuth: []
@@ -498,33 +521,7 @@ paths:
   # ==========================================
   # USER WEBHOOKS
   # ==========================================
-  /api/v1/user-webhooks:
-    get:
-      tags:
-        - User Webhooks
-      summary: List webhook endpoints
-      description: Get all registered webhook endpoints for the authenticated merchant
-      operationId: listWebhookEndpoints
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Webhook endpoints retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/WebhookEndpoint'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-    
+  
   /api/v1/user-webhooks/{id}:
     get:
       tags:
@@ -844,6 +841,10 @@ components:
           type: string
           enum: [pass, fail, review]
           nullable: true
+          description: >
+            Verification recommendation from the most recent web presence check.
+            A null value indicates that verification has not completed or failed.
+            Monitoring may still be active when this value is null.
         provider:
           type: string
           example: truebiz
@@ -957,6 +958,10 @@ components:
       type: object
       description: |
         Webhook event payload sent to your endpoint.
+
+        Event types indicate domain lifecycle or verification-related updates.
+        Events do not guarantee successful verification; consumers should rely
+        on the payload data to determine the current verification state.
 
         **Important:** Always verify the `X-Webhook-Signature` header before processing this payload.
       properties:
