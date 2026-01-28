@@ -220,6 +220,24 @@ const domainController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  async recheckDomain(req, res, next) {
+    try {
+      const userContext = getUserContext(req);
+      if (!userContext || !userContext.id) {
+        return next(new Error('User context not found'));
+      }
+
+      const result = await domainService.recheckDomain(userContext.id, req.params.id);
+
+      res.json({
+        message: 'Domain verification check completed successfully',
+        data: result
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 };
 
