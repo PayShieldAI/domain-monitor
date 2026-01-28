@@ -52,10 +52,9 @@ const webhookController = {
       }
 
       // Get provider instance
-      await providerService.ensureInitialized();
-      const providerInstance = providerService.getProvider(provider);
+      const providerInstance = await providerService.getProvider(provider);
       if (!providerInstance) {
-        throw new AppError(`Provider not initialized: ${provider}`, 500, 'PROVIDER_NOT_INITIALIZED');
+        throw new AppError(`Provider not found or disabled: ${provider}`, 500, 'PROVIDER_NOT_FOUND');
       }
 
       //TODO -  this signature handling passed from the  provider after signature validation 

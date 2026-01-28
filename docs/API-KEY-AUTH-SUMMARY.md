@@ -35,7 +35,6 @@ These endpoints accept **either** JWT Bearer token OR API key (`X-API-Key` heade
 #### Admin - Providers (Superadmin or API Key)
 - **GET** `/api/v1/admin/providers` - List providers
 - **POST** `/api/v1/admin/providers` - Create provider
-- **POST** `/api/v1/admin/providers/reload` - Reload providers
 - **GET** `/api/v1/admin/providers/:id` - Get provider
 - **GET** `/api/v1/admin/providers/name/:name` - Get provider by name
 - **PATCH** `/api/v1/admin/providers/:id` - Update provider

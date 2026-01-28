@@ -8,131 +8,87 @@ const AppError = require('../utils/AppError');
 /**
  * Provider Service
  * Manages multiple domain intelligence providers
+ * Loads provider config from database on each request (no caching)
  */
-class ProviderService {
-  constructor() {
-    this.providers = new Map();
-    this.primaryProvider = null;
-    this.initialized = false;
-  }
-
+const providerService = {
   /**
-   * Initialize providers from database configuration
+   * Create a provider instance from database config
+   * @param {Object} providerConfig - Provider config from database
+   * @returns {Object} Provider instance
    */
-  async initialize() {
-    if (this.initialized) return;
+  createProviderInstance(providerConfig) {
+    const apiKey = decrypt(providerConfig.api_key_encrypted);
 
-    try {
-      // Load providers from database
-      const dbProviders = await providerRepository.getAllEnabled();
-
-      if (dbProviders.length === 0) {
-        logger.warn('No providers configured in database');
-        this.initialized = true;
-        return;
-      }
-
-      // Initialize each provider
-      for (const providerConfig of dbProviders) {
+    // Parse config if it's a string, otherwise use as-is
+    let config = {};
+    if (providerConfig.config) {
+      if (typeof providerConfig.config === 'string') {
         try {
-          const apiKey = decrypt(providerConfig.api_key_encrypted);
-          // Parse config if it's a string, otherwise use as-is
-          let config = {};
-          if (providerConfig.config) {
-            if (typeof providerConfig.config === 'string') {
-              try {
-                config = JSON.parse(providerConfig.config);
-              } catch (e) {
-                logger.warn({ provider: providerConfig.name }, 'Failed to parse provider config');
-                config = {};
-              }
-            } else {
-              config = providerConfig.config;
-            }
-          }
-
-          // Log the config being passed to provider
-          logger.info({
-            providerName: providerConfig.name,
-            apiBaseUrl: providerConfig.api_base_url,
-            timeout: providerConfig.timeout,
-            rateLimit: providerConfig.rate_limit,
-            hasApiKey: !!apiKey,
-            configKeys: Object.keys(config)
-          }, 'Initializing provider with config');
-
-          let provider;
-          switch (providerConfig.name) {
-            case 'truebiz':
-              provider = new TrueBizProvider({
-                apiKey,
-                apiBaseUrl: providerConfig.api_base_url,
-                timeout: providerConfig.timeout,
-                rateLimit: providerConfig.rate_limit,
-                ...config
-              });
-              break;
-            default:
-              logger.warn({ provider: providerConfig.name }, 'Unknown provider type');
-              continue;
-          }
-
-          const isPrimary = providerConfig.priority === 10; // Lowest priority is primary
-          this.registerProvider(providerConfig.name, provider, isPrimary);
-
-        } catch (error) {
-          logger.error({
-            provider: providerConfig.name,
-            error: error.message
-          }, 'Failed to initialize provider');
+          config = JSON.parse(providerConfig.config);
+        } catch (e) {
+          logger.warn({ provider: providerConfig.name }, 'Failed to parse provider config');
+          config = {};
         }
+      } else {
+        config = providerConfig.config;
       }
-
-      this.initialized = true;
-      logger.info({ count: this.providers.size }, 'Provider service initialized');
-
-    } catch (error) {
-      logger.error({ error: error.message }, 'Failed to initialize providers');
-      throw error;
-    }
-  }
-
-  /**
-   * Register a provider
-   * @param {string} name - Provider name
-   * @param {BaseProvider} provider - Provider instance
-   * @param {boolean} isPrimary - Set as primary provider
-   */
-  registerProvider(name, provider, isPrimary = false) {
-    this.providers.set(name, provider);
-
-    if (isPrimary || !this.primaryProvider) {
-      this.primaryProvider = provider;
-      logger.info({ provider: name }, 'Primary provider set');
     }
 
-    logger.info({ provider: name }, 'Provider registered');
-  }
+    let provider;
+    switch (providerConfig.name) {
+      case 'truebiz':
+        provider = new TrueBizProvider({
+          apiKey,
+          apiBaseUrl: providerConfig.api_base_url,
+          timeout: providerConfig.timeout,
+          rateLimit: providerConfig.rate_limit,
+          ...config
+        });
+        break;
+      default:
+        logger.warn({ provider: providerConfig.name }, 'Unknown provider type');
+        return null;
+    }
+
+    return provider;
+  },
 
   /**
-   * Get a provider by name
+   * Get a provider by name (loads from DB)
    * @param {string} name - Provider name
-   * @returns {BaseProvider}
+   * @returns {Promise<Object>} Provider instance
    */
-  getProvider(name) {
-    return this.providers.get(name);
-  }
+  async getProvider(name) {
+    const providerConfig = await providerRepository.findByName(name);
+    if (!providerConfig || !providerConfig.enabled) {
+      return null;
+    }
+    return this.createProviderInstance(providerConfig);
+  },
 
   /**
-   * Get primary provider
-   * @returns {BaseProvider}
+   * Get primary provider (loads from DB)
+   * @returns {Promise<Object>} Provider instance
    */
-  getPrimaryProvider() {
-    if (!this.primaryProvider) {
+  async getPrimaryProvider() {
+    const dbProviders = await providerRepository.getAllEnabled();
+
+    if (dbProviders.length === 0) {
       throw new AppError('No provider configured', 500, 'NO_PROVIDER');
     }
-    return this.primaryProvider;
-  }
+
+    // Find primary provider (lowest priority number)
+    const primaryConfig = dbProviders.reduce((prev, curr) =>
+      (prev.priority < curr.priority) ? prev : curr
+    );
+
+    const provider = this.createProviderInstance(primaryConfig);
+    if (!provider) {
+      throw new AppError('Failed to create provider instance', 500, 'PROVIDER_CREATE_FAILED');
+    }
+
+    return provider;
+  },
 
   /**
    * Check a domain using primary provider with fallback
@@ -141,8 +97,6 @@ class ProviderService {
    * @returns {Promise<Object>} Check result
    */
   async checkDomain(domainId, domainOrPayload) {
-    await this.ensureInitialized();
-
     // Validate domainId is provided
     if (!domainId) {
       logger.error({
@@ -151,7 +105,7 @@ class ProviderService {
       }, 'checkDomain called without domainId - this will result in missing domain_id in logs');
     }
 
-    const provider = this.getPrimaryProvider();
+    const provider = await this.getPrimaryProvider();
 
     try {
       const result = await provider.checkDomain(domainOrPayload, domainId);
@@ -181,7 +135,7 @@ class ProviderService {
       // TODO: Implement fallback to secondary providers
       throw error;
     }
-  }
+  },
 
   /**
    * Check multiple domains
@@ -189,8 +143,6 @@ class ProviderService {
    * @returns {Promise<Array>} Results
    */
   async checkDomainsBatch(domains) {
-    await this.ensureInitialized();
-
     const results = [];
 
     for (const item of domains) {
@@ -213,7 +165,7 @@ class ProviderService {
     }
 
     return results;
-  }
+  },
 
   /**
    * Start monitoring a domain with the primary provider
@@ -223,8 +175,6 @@ class ProviderService {
    * @returns {Promise<Object>} Monitoring result
    */
   async startMonitoring(domainId, domainName, checkFrequency = '7') {
-    await this.ensureInitialized();
-
     // Validate domainId is provided
     if (!domainId) {
       logger.error({
@@ -233,7 +183,7 @@ class ProviderService {
       }, 'startMonitoring called without domainId - this will result in missing domain_id in logs');
     }
 
-    const provider = this.getPrimaryProvider();
+    const provider = await this.getPrimaryProvider();
 
     // Check if provider supports monitoring
     if (typeof provider.startMonitoring !== 'function') {
@@ -266,7 +216,7 @@ class ProviderService {
       // Don't throw - monitoring failure shouldn't fail domain creation
       return null;
     }
-  }
+  },
 
   /**
    * Stop monitoring a domain with the primary provider
@@ -275,8 +225,6 @@ class ProviderService {
    * @returns {Promise<Object>} Stop monitoring result
    */
   async stopMonitoring(domainId, domainName) {
-    await this.ensureInitialized();
-
     // Validate domainId is provided
     if (!domainId) {
       logger.error({
@@ -284,7 +232,7 @@ class ProviderService {
       }, 'stopMonitoring called without domainId - this will result in missing domain_id in logs');
     }
 
-    const provider = this.getPrimaryProvider();
+    const provider = await this.getPrimaryProvider();
 
     // Check if provider supports stop monitoring
     if (typeof provider.stopMonitoring !== 'function') {
@@ -317,7 +265,7 @@ class ProviderService {
       // Don't throw - stop monitoring failure shouldn't fail the operation
       return null;
     }
-  }
+  },
 
   /**
    * Check provider health
@@ -325,10 +273,8 @@ class ProviderService {
    * @returns {Promise<Object>} Health status
    */
   async checkProviderHealth(providerName) {
-    await this.ensureInitialized();
-
     if (providerName) {
-      const provider = this.getProvider(providerName);
+      const provider = await this.getProvider(providerName);
       if (!provider) {
         throw new AppError('Provider not found', 404, 'PROVIDER_NOT_FOUND');
       }
@@ -341,23 +287,18 @@ class ProviderService {
     }
 
     // Check all providers
+    const dbProviders = await providerRepository.getAllEnabled();
     const statuses = {};
-    for (const [name, provider] of this.providers.entries()) {
-      statuses[name] = await provider.healthCheck();
+
+    for (const providerConfig of dbProviders) {
+      const provider = this.createProviderInstance(providerConfig);
+      if (provider) {
+        statuses[providerConfig.name] = await provider.healthCheck();
+      }
     }
 
     return statuses;
   }
+};
 
-  /**
-   * Ensure providers are initialized
-   */
-  async ensureInitialized() {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-  }
-}
-
-// Export singleton instance
-module.exports = new ProviderService();
+module.exports = providerService;

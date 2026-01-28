@@ -31,13 +31,6 @@ router.get('/', providerController.list);
 router.post('/', validate(createProviderSchema, 'body'), providerController.create);
 
 /**
- * @route   POST /api/v1/admin/providers/reload
- * @desc    Reload all providers
- * @access  Admin
- */
-router.post('/reload', providerController.reload);
-
-/**
  * @route   GET /api/v1/admin/providers/name/:name
  * @desc    Get provider by name
  * @access  Admin

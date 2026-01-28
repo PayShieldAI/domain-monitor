@@ -75,9 +75,6 @@ const providerAdminService = {
 
     logger.info({ providerId: provider.id, name: provider.name }, 'Provider created');
 
-    // Reload provider service to pick up new provider
-    await this.reloadProviders();
-
     return this.formatProvider(provider);
   },
 
@@ -137,9 +134,6 @@ const providerAdminService = {
 
     logger.info({ providerId: provider.id, name: provider.name }, 'Provider updated');
 
-    // Reload provider service to pick up changes
-    await this.reloadProviders();
-
     return this.formatProvider(provider);
   },
 
@@ -154,9 +148,6 @@ const providerAdminService = {
 
     await providerRepository.updateEnabled(id, true);
     logger.info({ providerId: id, name: provider.name }, 'Provider enabled');
-
-    // Reload provider service
-    await this.reloadProviders();
 
     return this.formatProvider(await providerRepository.findById(id));
   },
@@ -173,9 +164,6 @@ const providerAdminService = {
     await providerRepository.updateEnabled(id, false);
     logger.info({ providerId: id, name: provider.name }, 'Provider disabled');
 
-    // Reload provider service
-    await this.reloadProviders();
-
     return this.formatProvider(await providerRepository.findById(id));
   },
 
@@ -191,9 +179,6 @@ const providerAdminService = {
     await providerRepository.updatePriority(id, priority);
     logger.info({ providerId: id, name: provider.name, priority }, 'Provider priority updated');
 
-    // Reload provider service
-    await this.reloadProviders();
-
     return this.formatProvider(await providerRepository.findById(id));
   },
 
@@ -208,23 +193,6 @@ const providerAdminService = {
 
     await providerRepository.delete(id);
     logger.info({ providerId: id, name: provider.name }, 'Provider deleted');
-
-    // Reload provider service
-    await this.reloadProviders();
-  },
-
-  /**
-   * Reload all providers (reinitialize provider service)
-   */
-  async reloadProviders() {
-    try {
-      providerService.initialized = false;
-      await providerService.initialize();
-      logger.info('Providers reloaded successfully');
-    } catch (error) {
-      logger.error({ error: error.message }, 'Failed to reload providers');
-      throw new AppError('Failed to reload providers', 500, 'PROVIDER_RELOAD_FAILED');
-    }
   },
 
   /**

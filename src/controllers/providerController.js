@@ -193,28 +193,6 @@ const providerController = {
   },
 
   /**
-   * Reload all providers
-   * POST /api/v1/admin/providers/reload
-   */
-  async reload(req, res, next) {
-    try {
-      await providerAdminService.reloadProviders();
-
-      logger.info(
-        { userId: req.user.id },
-        'Providers reloaded by admin'
-      );
-
-      res.json({
-        success: true,
-        message: 'Providers reloaded successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  /**
    * Check provider health
    * GET /api/v1/admin/providers/:id/health
    */

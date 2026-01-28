@@ -22,9 +22,6 @@ class SchedulerService {
       return;
     }
 
-    // Initialize provider service
-    await providerService.initialize();
-
     this.isRunning = true;
     logger.info('Scheduler started');
 

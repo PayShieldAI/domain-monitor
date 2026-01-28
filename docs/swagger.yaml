@@ -62,7 +62,7 @@ info:
     name: Proprietary
 
 servers:
-  - url: https://dev-domainmonitor.ipo-servers.net
+  - url: https://justin-dev-domainmonitor.ipo-servers.net
     description: Development server
   - url: https://uat-monitor.payshield.ai
     description: UAT server
@@ -2550,38 +2550,6 @@ paths:
                     type: string
                   data:
                     $ref: '#/components/schemas/Provider'
-
-  /api/v1/admin/providers/reload:
-    post:
-      tags:
-        - Providers
-      summary: Reload providers from database
-      description: Reloads all providers from database into memory. Use after manual database changes.
-      security:
-        - ApiKeyAuth: []
-      responses:
-        '200':
-          description: Providers reloaded
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-                  data:
-                    type: object
-                    properties:
-                      count:
-                        type: integer
-                        description: Number of providers loaded
-                      providers:
-                        type: array
-                        items:
-                          type: string
-                        description: List of provider names
 
   /api/v1/admin/providers/{id}/health:
     get:
