@@ -1,4 +1,5 @@
 const userWebhookRepository = require('../repositories/userWebhookRepository');
+const domainRepository = require('../repositories/domainRepository');
 const webhookDeliveryService = require('./webhookDeliveryService');
 const cryptoUtils = require('../utils/crypto');
 const AppError = require('../utils/AppError');
@@ -290,6 +291,31 @@ const userWebhookService = {
    */
   async listAllDeliveries(options = {}) {
     const { userId, resellerId, page, limit, status, eventType, dateFrom, dateTo, domainId } = options;
+
+    // Verify domain ownership if domainId is provided
+    if (domainId) {
+      // System-level access (when both userId and resellerId are null) can access any domain
+      const isSystemAccess = !userId && !resellerId;
+
+      if (!isSystemAccess) {
+        // Determine the user who should own the domain
+        const ownerUserId = userId || (resellerId ? null : null);
+
+        if (ownerUserId) {
+          // Merchant: verify they own the domain
+          const domain = await domainRepository.findByIdAndUserId(domainId, ownerUserId);
+          if (!domain) {
+            throw new AppError('Access denied: Domain not found or you do not have permission to access it', 403, 'FORBIDDEN');
+          }
+        } else if (resellerId) {
+          // Reseller: verify the domain belongs to one of their merchants
+          const hasAccess = await domainRepository.resellerHasAccessToDomain(resellerId, domainId);
+          if (!hasAccess) {
+            throw new AppError('Access denied: Domain not found or you do not have permission to access it', 403, 'FORBIDDEN');
+          }
+        }
+      }
+    }
 
     const result = await userWebhookRepository.findAllDeliveryLogs({
       userId,
