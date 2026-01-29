@@ -188,12 +188,18 @@ paths:
             type: integer
             minimum: 1800
           description: Filter by founded year
-        - name: search
+        - name: domain
           in: query
           schema:
             type: string
             maxLength: 255
-          description: Search by domain or name
+          description: Filter by domain name (partial match)
+        - name: name
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by business name (partial match)
         - name: sortBy
           in: query
           schema:
@@ -220,7 +226,7 @@ paths:
           schema:
             type: integer
             default: 20
-            maximum: 100
+            maximum: 1000
           description: Number of items per page
       responses:
         '200':

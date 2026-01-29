@@ -920,7 +920,7 @@ paths:
           schema:
             type: integer
             default: 20
-            maximum: 100
+            maximum: 1000
           description: Number of items per page
         - name: status
           in: query
@@ -934,12 +934,18 @@ paths:
             type: string
             enum: [pass, fail, review]
           description: Filter by recommendation status
-        - name: search
+        - name: domain
           in: query
           schema:
             type: string
             maxLength: 255
-          description: Search by domain or name
+          description: Filter by domain name (partial match)
+        - name: name
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by business name (partial match)
         - name: industry
           in: query
           schema:

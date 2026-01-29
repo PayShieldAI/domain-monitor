@@ -55,6 +55,26 @@ const domainRepository = {
     return queryOne(sql, [id, userId]);
   },
 
+  async findByIdWithMonitoring(id) {
+    const sql = `
+      SELECT d.*, dm.status as monitoring_status
+      FROM domains d
+      LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
+      WHERE d.id = ?
+    `;
+    return queryOne(sql, [id]);
+  },
+
+  async findByIdAndUserIdWithMonitoring(id, userId) {
+    const sql = `
+      SELECT d.*, dm.status as monitoring_status
+      FROM domains d
+      LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
+      WHERE d.id = ? AND d.user_id = ?
+    `;
+    return queryOne(sql, [id, userId]);
+  },
+
   async findByDomainAndUserId(domain, userId) {
     const sql = 'SELECT * FROM domains WHERE domain = ? AND user_id = ?';
     return queryOne(sql, [domain, userId]);
@@ -72,7 +92,8 @@ const domainRepository = {
       limit = 20,
       status,
       recommendation,
-      search,
+      domain,
+      name,
       industry,
       businessType,
       foundedYear,
@@ -89,18 +110,32 @@ const domainRepository = {
     const countParams = [];
 
     if (mode === 'all') {
-      sql = 'SELECT * FROM domains WHERE 1=1';
-      countSql = 'SELECT COUNT(*) as total FROM domains WHERE 1=1';
-      prefix = '';
+      sql = `
+        SELECT d.*, dm.status as monitoring_status
+        FROM domains d
+        LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
+        WHERE 1=1
+      `;
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM domains d
+        LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
+        WHERE 1=1
+      `;
+      prefix = 'd.';
     } else if (mode === 'reseller') {
       sql = `
-        SELECT d.* FROM domains d
+        SELECT d.*, dm.status as monitoring_status
+        FROM domains d
         INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+        LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
         WHERE rmr.reseller_id = ?
       `;
       countSql = `
-        SELECT COUNT(*) as total FROM domains d
+        SELECT COUNT(*) as total
+        FROM domains d
         INNER JOIN reseller_merchant_relationships rmr ON d.user_id = rmr.merchant_id
+        LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
         WHERE rmr.reseller_id = ?
       `;
       prefix = 'd.';
@@ -108,9 +143,19 @@ const domainRepository = {
       countParams.push(id);
     } else {
       // mode === 'user'
-      sql = 'SELECT * FROM domains WHERE user_id = ?';
-      countSql = 'SELECT COUNT(*) as total FROM domains WHERE user_id = ?';
-      prefix = '';
+      sql = `
+        SELECT d.*, dm.status as monitoring_status
+        FROM domains d
+        LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
+        WHERE d.user_id = ?
+      `;
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM domains d
+        LEFT JOIN domain_monitoring dm ON d.id = dm.domain_id
+        WHERE d.user_id = ?
+      `;
+      prefix = 'd.';
       params.push(id);
       countParams.push(id);
     }
@@ -130,12 +175,20 @@ const domainRepository = {
       countParams.push(recommendation);
     }
 
-    if (search) {
-      sql += ` AND (${prefix}domain LIKE ? OR ${prefix}name LIKE ?)`;
-      countSql += ` AND (${prefix}domain LIKE ? OR ${prefix}name LIKE ?)`;
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern);
-      countParams.push(searchPattern, searchPattern);
+    if (domain) {
+      sql += ` AND ${prefix}domain LIKE ?`;
+      countSql += ` AND ${prefix}domain LIKE ?`;
+      const domainPattern = `%${domain}%`;
+      params.push(domainPattern);
+      countParams.push(domainPattern);
+    }
+
+    if (name) {
+      sql += ` AND ${prefix}name LIKE ?`;
+      countSql += ` AND ${prefix}name LIKE ?`;
+      const namePattern = `%${name}%`;
+      params.push(namePattern);
+      countParams.push(namePattern);
     }
 
     if (industry) {

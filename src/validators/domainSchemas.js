@@ -147,10 +147,11 @@ const bulkStatusSchema = Joi.object({
 
 const listDomainsQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(100).default(20),
+  limit: Joi.number().integer().min(1).max(1000).default(20),
   status: Joi.string().valid('active', 'inactive'),
   recommendation: Joi.string().valid('pass', 'fail', 'review'),
-  search: Joi.string().max(255),
+  domain: Joi.string().max(255),
+  name: Joi.string().max(255),
   industry: Joi.string().max(255),
   businessType: Joi.string().max(255),
   foundedYear: Joi.number().integer().min(1800).max(new Date().getFullYear()),

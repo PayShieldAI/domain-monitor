@@ -337,17 +337,17 @@ const domainService = {
 
     if (isSuperadmin(user)) {
       // Superadmin can access any domain
-      domain = await domainRepository.findById(domainId);
+      domain = await domainRepository.findByIdWithMonitoring(domainId);
     } else if (isReseller(user)) {
       // Reseller can only access domains of assigned merchants
       const hasAccess = await domainRepository.resellerHasAccessToDomain(user.id, domainId);
       if (!hasAccess) {
         throw new AppError('Domain not found', 404, 'DOMAIN_NOT_FOUND');
       }
-      domain = await domainRepository.findById(domainId);
+      domain = await domainRepository.findByIdWithMonitoring(domainId);
     } else {
       // Merchant can only access own domains
-      domain = await domainRepository.findByIdAndUserId(domainId, user.id);
+      domain = await domainRepository.findByIdAndUserIdWithMonitoring(domainId, user.id);
     }
 
     if (!domain) {
@@ -391,7 +391,8 @@ const domainService = {
       filters: {
         status: options.status || null,
         recommendation: options.recommendation || null,
-        search: options.search || null
+        domain: options.domain || null,
+        name: options.name || null
       }
     };
   },
@@ -547,7 +548,9 @@ const domainService = {
     const response = {
       id: domain.id,
       domain: domain.domain,
+      name: domain.name,
       status: domain.status,
+      monitoringStatus: domain.monitoring_status != null ? (domain.monitoring_status === 1 ? 'active' : 'inactive') : null,
       checkFrequency: domain.check_frequency,
       lastCheckedAt: domain.last_checked_at,
       nextCheckAt: domain.next_check_at,
