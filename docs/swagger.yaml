@@ -1028,46 +1028,64 @@ paths:
                 description:
                   type: string
                   maxLength: 1000
+                  example: A family-owned burrito restaurant serving authentic Mexican cuisine
                   description: Business description
                 website:
                   type: string
                   format: uri
                   maxLength: 500
+                  example: https://example.com
                   description: Full website URL
                 addressLine1:
                   type: string
                   maxLength: 255
+                  example: 123 Main Street
+                  description: Street address line 1
                 addressLine2:
                   type: string
                   maxLength: 255
+                  example: Suite 100
+                  description: Street address line 2
                 city:
                   type: string
                   maxLength: 100
+                  example: San Francisco
+                  description: City
                 stateProvince:
                   type: string
                   maxLength: 100
+                  example: CA
+                  description: State or province
                 postalCode:
                   type: string
                   maxLength: 20
+                  example: "94102"
+                  description: Postal/ZIP code
                 country:
                   type: string
                   maxLength: 100
+                  example: USA
+                  description: Country
                 email:
                   type: string
                   format: email
                   maxLength: 255
+                  example: contact@example.com
                   description: Contact email
                 phone:
                   type: string
                   maxLength: 50
-                  description: Contact phone
+                  example: "+1-555-123-4567"
+                  description: Contact phone number
                 fullName:
                   type: string
                   maxLength: 255
+                  example: John Doe
                   description: Contact person full name
                 externalTrackingRef:
                   type: string
                   maxLength: 255
+                  example: MERCH-12345
                   description: External tracking reference ID
                 checkFrequency:
                   type: string

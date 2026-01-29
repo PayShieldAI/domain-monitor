@@ -564,11 +564,14 @@ curl -X GET "https://dev-domainmonitor.ipo-servers.net/api/v1/domains?page=1&lim
 | `limit` | integer | 20 | Items per page (max 100) |
 | `status` | string | - | Filter: `active` or `inactive` |
 | `recommendation` | string | - | Filter: `pass`, `fail`, or `review` |
-| `search` | string | - | Search in domain and name |
+| `search` | string | - | Search in domain and name (max 255 chars) |
+| `industry` | string | - | Filter by industry (max 255 chars) |
+| `businessType` | string | - | Filter by business type (max 255 chars) |
+| `foundedYear` | integer | - | Filter by founded year (1800 - current year) |
 | `sortBy` | string | `created_at` | Sort field |
 | `sortOrder` | string | `desc` | `asc` or `desc` |
 
-**Available sort fields:** `created_at`, `updated_at`, `domain`, `name`, `recommendation`, `last_checked_at`
+**Available sort fields:** `created_at`, `updated_at`, `domain`, `name`, `recommendation`, `last_checked_at`, `industry`, `business_type`, `founded_year`
 
 **Response:**
 ```json
@@ -591,7 +594,10 @@ curl -X GET "https://dev-domainmonitor.ipo-servers.net/api/v1/domains?page=1&lim
   "filters": {
     "status": null,
     "recommendation": null,
-    "search": null
+    "search": null,
+    "industry": null,
+    "businessType": null,
+    "foundedYear": null
   }
 }
 ```
@@ -1053,44 +1059,31 @@ All webhook events follow this structure:
 ```json
 {
   "event": "business-closed",
-  "timestamp": "2024-01-15T10:30:00Z",
+  "description": "Business appears to be closed based on verification data",
+  "timestamp": "2024-01-15T10:30:00.000Z",
   "data": {
     "domainId": "550e8400-e29b-41d4-a716-446655440000",
     "domain": "example.com",
-    "recommendation": "fail",
-    "message": "Business appears to be closed based on verification data"
+    "status": "active",
+    "provider": "truebiz"
   }
 }
 ```
 
 #### Payload Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `event` | string | The event type that triggered this webhook |
-| `timestamp` | string | ISO 8601 timestamp when the event occurred |
-| `data` | object | Event-specific data (varies by event type) |
-| `data.domainId` | string | UUID of the domain (present for domain events) |
-| `data.domain` | string | The domain name |
-| `data.recommendation` | string | `pass`, `fail`, or `review` |
-| `data.message` | string | Human-readable event description |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `event` | string | Yes | The event type that triggered this webhook (e.g., `business-closed`, `sentiment`, `website`, `business-profile`) |
+| `description` | string | No | Human-readable description of the event (may be `null`) |
+| `timestamp` | string | Yes | ISO 8601 timestamp when the event occurred |
+| `data` | object | Yes | Event-specific data |
+| `data.domainId` | string (UUID) | Yes | UUID of the domain associated with this event |
+| `data.domain` | string | Yes | The domain name |
+| `data.status` | string | Yes | Current domain status (`active` or `inactive`) |
+| `data.provider` | string | Yes | The provider that triggered this event (e.g., `truebiz`) |
 
-#### Example: Business Closed Event
 
-```json
-{
-  "event": "business-closed",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "data": {
-    "domainId": "550e8400-e29b-41d4-a716-446655440000",
-    "domain": "example.com",
-    "recommendation": "fail",
-    "message": "Business appears to be closed based on verification data",
-    "businessName": "Example Corp",
-    "industry": "Technology"
-  }
-}
-```
 
 #### Example: Test Event
 
@@ -1165,11 +1158,15 @@ curl -X GET "https://dev-domainmonitor.ipo-servers.net/api/v1/user-webhooks/deli
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `page` | integer | Page number (default: 1) |
-| `limit` | integer | Items per page (default: 100, max: 1000) |
-| `status` | string | Filter by status: `pending`, `success`, `failed`, `retrying` |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | 1 | Page number (min: 1) |
+| `limit` | integer | 100 | Items per page (min: 1, max: 1000) |
+| `status` | string | - | Filter by status: `pending`, `success`, `failed`, `retrying` |
+| `userId` | string (UUID) | - | Filter by user ID (superadmin/reseller only) |
+| `domainId` | string (UUID) | - | Filter by domain ID |
+| `dateFrom` | string (ISO 8601) | - | Filter deliveries from this date (e.g., `2025-01-01` or `2025-01-01T00:00:00Z`) |
+| `dateTo` | string (ISO 8601) | - | Filter deliveries until this date (must be >= `dateFrom`) |
 
 **Response:**
 ```json

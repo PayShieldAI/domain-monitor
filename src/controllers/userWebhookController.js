@@ -314,6 +314,20 @@ const userWebhookController = {
         targetUserId = userContext.id;
       }
 
+      // Convert dates to UTC for consistent timezone handling
+      let normalizedDateFrom = dateFrom;
+      let normalizedDateTo = dateTo;
+
+      if (dateFrom) {
+        const dateFromObj = new Date(dateFrom);
+        normalizedDateFrom = dateFromObj.toISOString();
+      }
+
+      if (dateTo) {
+        const dateToObj = new Date(dateTo);
+        normalizedDateTo = dateToObj.toISOString();
+      }
+
       const result = await userWebhookService.listAllDeliveries({
         userId: targetUserId,
         resellerId,
@@ -321,8 +335,8 @@ const userWebhookController = {
         limit,
         status,
         eventType,
-        dateFrom,
-        dateTo,
+        dateFrom: normalizedDateFrom,
+        dateTo: normalizedDateTo,
         domainId
       });
 

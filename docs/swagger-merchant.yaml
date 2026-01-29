@@ -246,11 +246,9 @@ paths:
       tags:
         - Domains
       summary: Add a new domain
-      description: >
-        Register a new domain and start monitoring immediately.
-        An initial web presence verification is attempted asynchronously.
-        Verification may fail, timeout, or return incomplete data and does not
-        affect the monitoring status of the domain.
+      description: |
+        Register a new domain and start monitoring immediately. 
+        An initial web presence verification is attempted asynchronously. Verification may fail, timeout, or return incomplete data and does not affect the monitoring status of the domain.
       operationId: createDomain
       security:
         - BearerAuth: []
@@ -260,27 +258,90 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - domain
               properties:
                 domain:
                   type: string
+                  maxLength: 255
                   example: example.com
-                  description: Domain name without protocol
+                  description: Domain name (required if name not provided)
                 name:
                   type: string
-                  example: My Business Website
-                  description: Friendly name for the domain
+                  maxLength: 255
+                  example: "Bob's Burritos"
+                  description: Business name (required if domain not provided)
+                description:
+                  type: string
+                  maxLength: 1000
+                  example: A family-owned burrito restaurant serving authentic Mexican cuisine
+                  description: Business description
+                website:
+                  type: string
+                  format: uri
+                  maxLength: 500
+                  example: https://bobsburritos.com
+                  description: Full website URL
+                addressLine1:
+                  type: string
+                  maxLength: 255
+                  example: 123 Main Street
+                  description: Street address line 1
+                addressLine2:
+                  type: string
+                  maxLength: 255
+                  example: Suite 100
+                  description: Street address line 2
+                city:
+                  type: string
+                  maxLength: 100
+                  example: San Francisco
+                  description: City
+                stateProvince:
+                  type: string
+                  maxLength: 100
+                  example: CA
+                  description: State or province
+                postalCode:
+                  type: string
+                  maxLength: 20
+                  example: "94102"
+                  description: Postal/ZIP code
+                country:
+                  type: string
+                  maxLength: 100
+                  example: USA
+                  description: Country
+                email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  example: contact@bobsburritos.com
+                  description: Contact email
+                phone:
+                  type: string
+                  maxLength: 50
+                  example: "+1-555-123-4567"
+                  description: Contact phone number
+                fullName:
+                  type: string
+                  maxLength: 255
+                  example: Bob Rodriguez
+                  description: Contact person full name
+                externalTrackingRef:
+                  type: string
+                  maxLength: 255
+                  example: MERCH-12345
+                  description: External tracking reference ID
                 checkFrequency:
                   type: string
                   enum: ['7', '30', '90']
-                  default: '7'
+                  nullable: true
                   description: |
                     Monitoring frequency in days:
                     - '7': Weekly monitoring (every 7 days)
                     - '30': Monthly monitoring (every 30 days)
                     - '90': Quarterly monitoring (every 90 days)
 
+                    If not provided (null/empty), no ongoing monitoring will be started - only a one-time domain/company check is performed.
                     This value is sent to the monitoring provider to configure the monitoring package frequency.
       responses:
         '201':

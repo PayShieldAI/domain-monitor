@@ -123,8 +123,10 @@ const listDeliveriesQuerySchema = Joi.object({
   dateTo: Joi.date()
     .iso()
     .optional()
+    .min(Joi.ref('dateFrom'))
     .messages({
-      'date.format': 'dateTo must be a valid ISO 8601 date (e.g., 2025-01-31 or 2025-01-31T23:59:59Z)'
+      'date.format': 'dateTo must be a valid ISO 8601 date (e.g., 2025-01-31 or 2025-01-31T23:59:59Z)',
+      'date.min': 'dateTo must be equal to or after dateFrom'
     }),
   domainId: Joi.string()
     .uuid()
